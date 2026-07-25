@@ -117,6 +117,41 @@ water shot, not shot 0.
   - Reboot before the full ~19-hour render; a crash or OOM restart mid-run would otherwise
     leave ComfyUI alive but GPU-less and the run would fail with no way to resume.
 
+### Ops hazard: voice-ui owns ComfyUI's lifecycle
+
+**This is what killed the first POC render**, ~1 shot in. Not a crash and not an OOM — a
+teardown working exactly as designed.
+
+ComfyUI on this box is not started by anything in `~/ComfyUI`. It is started by
+`~/claude/voice-ui/start.sh` (its specs/12 image service), which is where the observed command
+line `./venv/bin/python main.py --listen 127.0.0.1 --port 8188 --reserve-vram 4` comes from:
+
+```bash
+# voice-ui/start.sh
+406: elif port_up "$COMFY_PORT"; then echo "  ✓ ComfyUI already running — reusing it"
+410:   ( cd "$COMFY_DIR" && exec ./venv/bin/python main.py ... --reserve-vram 4 ) &
+412:   COMFY_PID=$!
+192: [ -n "${COMFY_PID:-}" ] && { echo "  • stopping ComfyUI (we started it)"; kill_tree "$COMFY_PID" TERM; }
+```
+
+Running `voice-ui/start.sh` again cleans up the previous instance, and that teardown kills the
+ComfyUI it started. A long render dies with it.
+
+**Mitigation — start ComfyUI standalone before a long render.** Both kill paths (192 and 205)
+are guarded on `COMFY_PID`, which is only set when voice-ui launched the daemon itself. If the
+port is already up, voice-ui takes the line 406 branch, reuses it, and never claims ownership,
+so its teardowns leave the render alone:
+
+```bash
+cd ~/ComfyUI && ./venv/bin/python main.py --listen 127.0.0.1 --port 8188 --reserve-vram 4
+```
+
+**Residual hazard that the mitigation does NOT cover.** voice-ui's teardown POSTs
+`/free {"unload_models":true,"free_memory":true}` to ComfyUI whenever the port is reachable —
+including a daemon it does not own (lines 188-191). That is deliberate, so SDXL cannot squat the
+card, but it would unload Wan mid-render: at best a costly model reload, at worst it lands
+inside a sampling step. **Avoid voice-ui teardowns entirely while a render is running.**
+
 ## Resource rules
 
 - Local 3090, so wall-clock is cheap — only electricity. Long overnight runs are fine and there is
