@@ -57,19 +57,39 @@ rendering the old D-major piece and the slideshow path unchanged.
    clip A is the input image for clip B**. This produces genuine continuous motion.
    **Do NOT time-stretch or frame-interpolate a 5 s clip to 10 s** — that is slow motion, which is
    the slideshow problem in disguise, and was explicitly rejected.
-4. **Assembly.** ~60 shots ≈ 120 generations. Concatenate with short cross-dissolves, mux the
-   music, fade audio in/out, `+faststart` for upload. Output to `films/` and symlink into the
-   share dir like the existing genres.
+4. **Assembly.** 64 shots = 128 generations (60 gave 9.30 min; 64 gives 9.92 min). Concatenate
+   with short cross-dissolves, mux the music, fade audio in/out, `+faststart` for upload. Output
+   to `films/` and symlink into the share dir like the existing genres.
 
-### Prerequisites (nothing is installed yet)
+### Measured cost (one real generation, 2026-07-25)
 
-- No video model exists on this box. `~/ComfyUI/models/diffusion_models/` is empty and
-  `extra_model_paths.yaml` only points at `forge-neo` SD checkpoints. Wan 2.2 TI2V-5B weights +
-  its VAE and text encoder must be downloaded.
-- ComfyUI needs Wan 2.2 support (recent native nodes, or `ComfyUI-WanVideoWrapper`).
-- **Ops risk:** `nvidia-smi` currently fails with `Driver/library version mismatch` (NVML 580.173).
-  ComfyUI still runs, so the loaded kernel module is the older one — a reboot is pending. Resolve
-  or at least confirm this before a multi-hour unattended render.
+**533 s per 121-frame clip** on the 3090 at 1280x704 / 30 steps. So:
+- POC (6 shots, 12 generations): **~1.8 h**
+- Full film (64 shots, 128 generations): **~19 h** — an overnight run, as the spec anticipated.
+
+### Prerequisites (resolved 2026-07-25)
+
+- **Weights: installed.** `bin/fetch_wan.sh` downloaded Wan 2.2 TI2V-5B (10.0 GB), its VAE
+  (1.4 GB) and the umt5-xxl fp8 text encoder (6.7 GB) into `~/ComfyUI/models/`.
+- **ComfyUI Wan support: native, no custom nodes needed.** ComfyUI 0.24.0 already ships
+  `Wan22ImageToVideoLatent`, `CreateVideo`/`SaveVideo` and the `wan` CLIP type.
+- **No restart was needed** to pick up the new weights: `folder_paths.cached_filename_list_`
+  invalidates on directory mtime, so the running server saw them immediately.
+- **Reboot: DEFERRED, not resolved.** One real Wan generation ran end to end on the GPU, so the
+  POC does not need a reboot. But the mismatch is worse than "nvidia-smi is cosmetic":
+
+  > A **newly spawned** process cannot use CUDA at all — `torch.cuda.is_available()` is `False`
+  > and allocation dies with `Error 804: forward compatibility was attempted on non supported HW`.
+  > Only the ComfyUI process started on 2026-07-24 (**before** the driver files changed) still
+  > holds a working CUDA context.
+
+  Consequences until Graham reboots:
+  - **Do not restart or kill ComfyUI.** It will not get the GPU back. It is the only working
+    CUDA path on the box, and the whole pastoral pipeline talks to it over HTTP.
+  - The `horror` genre is currently broken here, unrelated to this spec: `render_horror` loads
+    MusicGen with `.to("cuda")` inside the *filmforge* process, which is a new process.
+  - Reboot before the full ~19-hour render; a crash or OOM restart mid-run would otherwise
+    leave ComfyUI alive but GPU-less and the run would fail with no way to resume.
 
 ## Resource rules
 
