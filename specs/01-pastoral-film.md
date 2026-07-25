@@ -63,9 +63,35 @@ rendering the old D-major piece and the slideshow path unchanged.
 
 ### Measured cost (one real generation, 2026-07-25)
 
-**533 s per 121-frame clip** on the 3090 at 1280x704 / 30 steps. So:
-- POC (6 shots, 12 generations): **~1.8 h**
-- Full film (64 shots, 128 generations): **~19 h** — an overnight run, as the spec anticipated.
+**533 s per 121-frame clip** on the 3090 at 1280x704 / 30 steps. Steps have since been cut to
+20 to match the reference workflow, so expect roughly **~355 s/clip**:
+- POC (6 shots, 12 generations): **~1.2 h**
+- Full film (64 shots, 128 generations): **~13 h** — still an overnight run.
+
+### The first generated clip was frozen (2026-07-25)
+
+The one clip rendered before the GPU went down had **no motion at all**. Graham caught it; the
+earlier claim in this file that the GPU path was "verified" was about the plumbing (right
+resolution, frame count, fps, no duplicate frames), **not** about the picture actually moving,
+and it should not have been written as reassuringly as it was.
+
+Measured: best-fitting translation is dy=0 dx=0, no zoom fits better than none, and divergence
+from frame 0 saturates at 3.3/255 by frame 15 then stays flat for the remaining 4.4 s. That is a
+still image with per-frame denoiser jitter.
+
+Diffed against ComfyUI's own `video_wan2_2_5B_ti2v` template. Model, VAE, CLIP, 1280x704, 121
+frames, 24 fps, shift 8, cfg 5 and uni_pc/simple all already matched. Three did not:
+
+1. **The positive prompt was only the motion fragment** and never described the scene. The
+   reference feeds a whole descriptive sentence with the camera move inside it. Fixed.
+2. **The negative prompt was an English paraphrase.** Wan's stock negative is Chinese and
+   explicitly rejects 静态 / 静止 / 静止不动的画面. Now used verbatim. Fixed.
+3. **Steps 30 vs the reference 20.** Aligned.
+
+Caveat on the evidence: shot 0 was, by bad luck, the only prompt in the journey that contained
+the word "still", on the most static subject in the film. So this is one bad sample, not proof
+the pipeline can never move. **None of the three fixes is verified** — the next test must be a
+water shot, not shot 0.
 
 ### Prerequisites (resolved 2026-07-25)
 
