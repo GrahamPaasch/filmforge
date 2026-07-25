@@ -1,0 +1,10 @@
+runs/
+films/
+assets/
+bin/
+__pycache__/
+*.pyc
+*.wav
+*.mp4
+*.mid
+*.png

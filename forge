@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# filmforge launcher:  forge <nature|horror> [seed] [num_scenes]
+exec /home/gpaasch/ComfyUI/venv/bin/python /home/gpaasch/filmforge/make_film.py "$@"
