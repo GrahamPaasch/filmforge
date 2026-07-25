@@ -133,7 +133,7 @@ PASTORAL_LIGHT = [
 ]
 
 PASTORAL_JOURNEY = [
-    # --- I. the summit snowfield: where it starts (shots 0-11) -------------
+    # --- I. the summit snowfield: where it starts (shots 0-12) -------------
     ("a high granite summit ridge under a wide empty sky, old snowfield clinging to the rock",
      "slow steady push in toward the ridge, thin wisps of cloud drifting left to right, snow surface still"),
     ("the crusted surface of an alpine snowfield, wind-carved ripples in the old snow",
@@ -148,6 +148,8 @@ PASTORAL_JOURNEY = [
      "the sheet of water creeps forward across the stone, reflections sliding with it"),
     ("tiny meltwater rivulets threading down through granular snow, blue shadow in the channels",
      "threads of water working downward through the snow, cutting their channels deeper"),
+    ("many separate meltwater threads converging into a single channel on wet granite",
+     "the separate threads running together and merging into one stronger flow"),
     ("water emerging from beneath the edge of a snowfield onto wet gravel",
      "water pulses out from under the snow, gravel shifting slightly in the flow"),
     ("a first small channel cut through coarse alpine gravel, clear water running",
@@ -159,7 +161,7 @@ PASTORAL_JOURNEY = [
     ("a rivulet gathering pace down a scree slope of broken granite",
      "water accelerating between the loose rocks, braiding and rejoining"),
 
-    # --- II. the trickle over rock (12-23) ---------------------------------
+    # --- II. the trickle over rock (13-25) ---------------------------------
     ("a trickle of clear water running over pale granite slabs streaked with mineral",
      "water running steadily across the slab, light glinting and moving along the flow"),
     ("water threading between rounded boulders on an open alpine slope",
@@ -170,6 +172,8 @@ PASTORAL_JOURNEY = [
      "moss fronds nodding in the current, water sliding past them"),
     ("clear water running over a bed of red and grey pebbles",
      "the current pushing over the pebbles, light patterns dancing on the stones below"),
+    ("a chain of small stone basins, each one spilling down into the next",
+     "water filling and overspilling each basin in turn on down the chain"),
     ("the first hardy alpine wildflowers on a wet rock ledge above the stream",
      "flowers stirring gently in a light breeze, water moving past below"),
     ("a stream cutting a narrow groove into solid rock over ages",
@@ -185,7 +189,7 @@ PASTORAL_JOURNEY = [
     ("morning mist drifting low across running water at the edge of the forest",
      "mist rolling slowly across the water surface, drifting downstream"),
 
-    # --- III. the forest creek (24-35) -------------------------------------
+    # --- III. the forest creek (26-38) -------------------------------------
     ("a clear creek running through a dark old conifer forest, moss on every stone",
      "water running over the mossy stones, light shifting through the branches above"),
     ("shafts of morning sunlight breaking through conifers onto a forest creek",
@@ -200,6 +204,8 @@ PASTORAL_JOURNEY = [
      "clear water flowing over the stones, refracted light rippling across them"),
     ("a small cascade over a moss-covered rock step in the forest",
      "water tumbling down the step, spray drifting into the shaft of light"),
+    ("a still backwater beside the main current of a forest creek, canopy reflected in it",
+     "the main current racing past while the quiet backwater turns slowly"),
     ("roots of old conifers exposed along an undercut creek bank",
      "water working past the roots, small eddies spinning and releasing"),
     ("golden light on the water where the forest canopy opens overhead",
@@ -211,7 +217,7 @@ PASTORAL_JOURNEY = [
     ("the last of the conifers giving way to open ground ahead, creek running out of the trees",
      "slow forward drift downstream, the trees opening out to bright meadow light"),
 
-    # --- IV. the meadow brook (36-47) --------------------------------------
+    # --- IV. the meadow brook (39-50) --------------------------------------
     ("a clear brook winding through a green alpine meadow, morning dew on the grass",
      "grass rippling in a light breeze, the brook running steadily through it"),
     ("wildflowers crowding both banks of a meadow brook, yellow and white",
@@ -237,7 +243,7 @@ PASTORAL_JOURNEY = [
     ("a broad slow reach of water reflecting the valley walls and morning sky",
      "the reflection rippling and settling as the wide current moves through"),
 
-    # --- V. the valley river: home (48-59) ---------------------------------
+    # --- V. the valley river: home (51-63) ---------------------------------
     ("a wide clear river running through a broad green mountain valley in full morning light",
      "the river moving steadily, light dancing across the whole width of the water"),
     ("the river surface close up, deep and clear, gravel visible far below",
@@ -248,6 +254,8 @@ PASTORAL_JOURNEY = [
      "leaves shimmering in the morning breeze, the river running past below"),
     ("morning light on the riffles of a broad river, the whole surface glittering",
      "the riffles breaking and reforming, light scattering across the water"),
+    ("the river deep and unhurried in a wide slow reach, the surface almost smooth",
+     "the deep water sliding past almost without a ripple, immense and steady"),
     ("the river seen from the bank looking downstream, valley walls falling away",
      "slow forward drift downstream, the valley opening wider ahead"),
     ("a wide calm reach of river mirroring the mountains it came from",
