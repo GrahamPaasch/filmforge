@@ -22,7 +22,7 @@ W, H = 1280, 704          # Wan 2.2 5B native resolution; keyframes are made to 
 FPS = 24
 CLIP_FRAMES = 121         # 121 frames @ 24fps = 5.04s, the model's native generation length
 CLIPS_PER_SHOT = 2        # -> ~10.0s per shot once the duplicated seam frame is dropped
-WAN_STEPS = 30
+WAN_STEPS = 20            # matches ComfyUI's video_wan2_2_5B_ti2v reference (was 30)
 WAN_CFG = 5.0
 WAN_SHIFT = 8.0           # ModelSamplingSD3 shift, per the Wan 2.2 5B reference workflow
 XFADE = 0.75              # cross-dissolve between shots

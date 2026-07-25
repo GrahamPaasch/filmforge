@@ -115,10 +115,18 @@ PASTORAL_STYLE = (", cinematic nature photography, alpine spring morning, volume
 PASTORAL_NEG = ("people, person, human, hands, animals, buildings, road, text, watermark, logo, "
                 "signature, cartoon, anime, illustration, blurry, lowres, oversaturated, deformed, "
                 "frame, border, split screen, collage")
-# Wan needs to be told what motion NOT to invent. Camera whip / scene changes break continuity.
-PASTORAL_MOTION_NEG = ("static image, still frame, frozen, slideshow, jump cut, scene change, "
-                       "camera shake, fast motion, time lapse, zoom burst, warping, morphing, "
-                       "flicker, people, text, watermark, distorted, low quality")
+# Wan's own negative prompt, verbatim from ComfyUI's video_wan2_2_5B_ti2v template. Keep the
+# Chinese: the model was trained on it, and it is the part that explicitly rejects 静态 /
+# 静止 / 静止不动的画面 (static / motionless / a motionless picture). An English paraphrase of
+# this is what let a completely frozen clip through on the first real generation.
+_WAN_STOCK_NEG = ("色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，"
+                  "整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，"
+                  "画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，"
+                  "静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走")
+# Our own constraints on top: this film has no people and no text of any kind on screen.
+PASTORAL_MOTION_NEG = (_WAN_STOCK_NEG +
+                       "，people, person, human, text, watermark, logo, subtitles, "
+                       "jump cut, scene change, camera shake, warping, morphing, flicker")
 
 # Light ladder: index into the FULL journey decides time of day, so a six-shot
 # proof-of-concept from the head of the river is still first light, not noon.
@@ -135,7 +143,8 @@ PASTORAL_LIGHT = [
 PASTORAL_JOURNEY = [
     # --- I. the summit snowfield: where it starts (shots 0-12) -------------
     ("a high granite summit ridge under a wide empty sky, old snowfield clinging to the rock",
-     "slow steady push in toward the ridge, thin wisps of cloud drifting left to right, snow surface still"),
+     "the camera pushes slowly forward toward the ridge while thin wisps of cloud drift steadily "
+     "left to right across the sky behind it"),
     ("the crusted surface of an alpine snowfield, wind-carved ripples in the old snow",
      "gentle slow drift across the snow surface, faint spindrift lifting and settling"),
     ("the melting lip of a snow cornice, granular wet snow, dark rock beneath",
@@ -204,8 +213,8 @@ PASTORAL_JOURNEY = [
      "clear water flowing over the stones, refracted light rippling across them"),
     ("a small cascade over a moss-covered rock step in the forest",
      "water tumbling down the step, spray drifting into the shaft of light"),
-    ("a still backwater beside the main current of a forest creek, canopy reflected in it",
-     "the main current racing past while the quiet backwater turns slowly"),
+    ("a quiet backwater beside the main current of a forest creek, canopy reflected in it",
+     "the main current races past while the backwater turns slowly in a wide eddy"),
     ("roots of old conifers exposed along an undercut creek bank",
      "water working past the roots, small eddies spinning and releasing"),
     ("golden light on the water where the forest canopy opens overhead",
@@ -275,12 +284,21 @@ PASTORAL_JOURNEY = [
 
 def pastoral_shot(i, total=None):
     """Return (still_prompt, motion_prompt) for journey index i, with the time of
-    day fixed by position in the WHOLE journey (not in a shortened POC slice)."""
+    day fixed by position in the WHOLE journey (not in a shortened POC slice).
+
+    The motion prompt is a FULL scene description that contains the movement, not a
+    bare motion fragment. Wan is text+image conditioned and the reference workflow
+    feeds it a whole descriptive sentence; handing it "water rushing through the
+    groove" with no scene context is a different task than the one it was trained on.
+    """
     total = total or len(PASTORAL_JOURNEY)
     still, motion = PASTORAL_JOURNEY[i % len(PASTORAL_JOURNEY)]
     p = i / max(1, total - 1)
     light = next(phrase for t, phrase in PASTORAL_LIGHT if p < t)
-    return f"{still}, {light}", motion
+    scene = f"{still}, {light}"
+    motion_prompt = (f"{scene}. {motion}. Continuous fluid movement throughout the shot, "
+                     f"smooth cinematic camera work, live action footage.")
+    return scene, motion_prompt
 
 
 GENRES = {
