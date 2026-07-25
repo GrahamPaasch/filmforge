@@ -1,6 +1,12 @@
 # Spec 01 — Pastoral: a real 24fps film (not a slideshow)
 
-Status: agreed via grill-me on 2026-07-25. Not yet implemented.
+Status: agreed via grill-me on 2026-07-25. Pipeline implemented 2026-07-25; blocked on
+prerequisites before it can render (see "Prerequisites" below — disk space and the driver
+mismatch are both still outstanding).
+
+Implementation: `ff_pastoral.py` (keyframes + Wan chaining + assembly), `ff_pastoral_music.py`
+(the F major score), the `pastoral` entry in `ff_pools.GENRES`, and `bin/fetch_wan.sh`.
+Run the POC with `./forge pastoral 1 --poc`.
 
 ## Why
 

@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
-# filmforge launcher:  forge <nature|horror> [seed] [num_scenes]
+# filmforge launcher:
+#   forge <nature|horror> [seed] [num_scenes]
+#   forge pastoral [seed] [num_shots] [--poc] [--no-music|--music]
+#     --poc = six chained shots (~60s) from the head of the water journey, video
+#             only, for judging before committing to the full 10-minute run.
 exec /home/gpaasch/ComfyUI/venv/bin/python /home/gpaasch/filmforge/make_film.py "$@"

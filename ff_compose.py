@@ -28,6 +28,20 @@ STRING_TRACKS = ['vln','pad','cello','bass','solo']
 GROUPS = {'winds':['flute','oboe','horn'],'color':['harp','timp','choir','piano']}
 
 
+def write_stem(fname, tns, notes, tempo):
+    """Write the named tracks out as one MIDI file. Shared with ff_pastoral_music."""
+    mid=mido.MidiFile(ticks_per_beat=TPB); m=mido.MidiTrack(); m.append(mido.MetaMessage('set_tempo',tempo=tempo,time=0)); mid.tracks.append(m)
+    for name in tns:
+        chn,prog=TRACKS[name]; tr=mido.MidiTrack(); mid.tracks.append(tr); tr.append(mido.Message('program_change',channel=chn,program=prog,time=0))
+        evs=[]
+        for (start,dur,pitch,vel) in notes[name]:
+            st=int(round(start*TPB)); en=int(round((start+dur)*TPB)); evs.append((st,1,pitch,vel,chn)); evs.append((en,0,pitch,0,chn))
+        evs.sort(key=lambda e:(e[0],e[1])); tp=0
+        for (t,on,pitch,vel,chn) in evs:
+            dt=t-tp; tp=t; tr.append(mido.Message('note_on' if on else 'note_off',channel=chn,note=pitch,velocity=vel,time=dt))
+    mid.save(fname)
+
+
 def compose(outdir, seed):
     rnd = random.Random(seed)
     KEY = rnd.choice([-4,-2,0,0,2,3,5])       # transpose (semitones)
@@ -147,20 +161,9 @@ def compose(outdir, seed):
     add('harp',(bar+14)*BEATS_PER_BAR,8,38,46); bar+=16
 
     tempo = mido.bpm2tempo(BPM)
-    def write_stem(fname, tns):
-        mid=mido.MidiFile(ticks_per_beat=TPB); m=mido.MidiTrack(); m.append(mido.MetaMessage('set_tempo',tempo=tempo,time=0)); mid.tracks.append(m)
-        for name in tns:
-            chn,prog=TRACKS[name]; tr=mido.MidiTrack(); mid.tracks.append(tr); tr.append(mido.Message('program_change',channel=chn,program=prog,time=0))
-            evs=[]
-            for (start,dur,pitch,vel) in notes[name]:
-                st=int(round(start*TPB)); en=int(round((start+dur)*TPB)); evs.append((st,1,pitch,vel,chn)); evs.append((en,0,pitch,0,chn))
-            evs.sort(key=lambda e:(e[0],e[1])); tp=0
-            for (t,on,pitch,vel,chn) in evs:
-                dt=t-tp; tp=t; tr.append(mido.Message('note_on' if on else 'note_off',channel=chn,note=pitch,velocity=vel,time=dt))
-        mid.save(fname)
-    for g,tns in GROUPS.items(): write_stem(f'{outdir}/stem_{g}.mid', tns)
-    for t in STRING_TRACKS: write_stem(f'{outdir}/stem_{t}.mid', [t])
-    write_stem(f'{outdir}/guide.mid', list(TRACKS.keys()))
+    for g,tns in GROUPS.items(): write_stem(f'{outdir}/stem_{g}.mid', tns, notes, tempo)
+    for t in STRING_TRACKS: write_stem(f'{outdir}/stem_{t}.mid', [t], notes, tempo)
+    write_stem(f'{outdir}/guide.mid', list(TRACKS.keys()), notes, tempo)
     return {'key_shift': KEY, 'bpm': BPM, 'bars': bar}
 
 

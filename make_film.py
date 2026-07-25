@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Film forge: churn out a fresh video in a genre.
-  usage:  make_film.py <nature|horror> [seed] [num_scenes]
+  usage:  make_film.py <nature|horror|pastoral> [seed] [num_scenes] [--poc] [--no-music]
 Run with the ComfyUI venv python (has torch/transformers/mido)."""
 import sys, os, time, json, random, subprocess, urllib.request, urllib.parse
 import numpy as np, scipy.io.wavfile as wav
@@ -73,6 +73,31 @@ def render_orchestral(d):
         "equalizer","3500","2.0q","-2.5","equalizer","9000","1.0q","-2",
         "reverb","74","42","100","100","24","0","compand","0.3,0.9","6:-70,-60,-18","-3","-90","0.2","gain","-n","-1.5"], env=SFLIB)
 
+# ---------- pastoral music: same sampler chain, gentler master ----------
+def render_pastoral(d):
+    """The orchestral master is tuned for the D-major piece and its compander lifts
+    quiet material ~10dB, which flattens a sunrise arc to about 4dB of swing. The
+    whole point of this score is one bloom, so pastoral keeps the dynamics."""
+    for g in ("winds","color"):
+        sh([FS,"-ni","-R","0","-C","0","-g","1.0","-r","44100","-F",f"{d}/raw_{g}.wav",SF,f"{d}/stem_{g}.mid"])
+    patch = {"vln":"1st Violins Sustain.sfz","pad":"Violas Sustain.sfz","cello":"Celli Sustain.sfz",
+             "bass":"Basses Sustain.sfz","solo":"Violin Solo 1 Sustain.sfz"}
+    for t,p in patch.items():
+        sh([SFIZZ,"--sfz",f"{PERF}/{p}","--midi",f"{d}/stem_{t}.mid","--wav",f"{d}/sfz_{t}.wav","-s","44100","-p","256"], env=SFLIB)
+    gains={"vln":"-4","pad":"-6","cello":"-6","bass":"-6","solo":"-5"}
+    for t,g in gains.items(): sh([SOX,f"{d}/sfz_{t}.wav",f"{d}/b_{t}.wav","gain",g], env=SFLIB)
+    sh([SOX,"-m",f"{d}/b_vln.wav",f"{d}/b_pad.wav",f"{d}/b_cello.wav",f"{d}/b_bass.wav",f"{d}/b_solo.wav",f"{d}/strings.wav","gain","-2"], env=SFLIB)
+    # winds lead this piece, so they sit forward of where the orchestral chain puts them
+    sh([SOX,f"{d}/raw_winds.wav",f"{d}/sh_winds.wav","gain","-6","lowpass","6000","treble","-2"], env=SFLIB)
+    sh([SOX,f"{d}/raw_color.wav",f"{d}/sh_color.wav","bass","+1","gain","-6"], env=SFLIB)
+    sh([SOX,"-m",f"{d}/strings.wav",f"{d}/sh_winds.wav",f"{d}/sh_color.wav",f"{d}/mix.wav"], env=SFLIB)
+    # open-air reverb, a warm tilt, and peak-only limiting -- no upward compression
+    sh([SOX,f"{d}/mix.wav",f"{d}/music.wav","gain","-3","equalizer","220","1.0q","+2",
+        "equalizer","3200","2.0q","-2","equalizer","10000","1.0q","-1.5",
+        "reverb","62","48","96","100","20","0",
+        "compand","0.1,0.6","6:-24,-18,-6","0","-90","0.1","gain","-n","-2.5"], env=SFLIB)
+
+
 # ---------- horror music (compose guide -> MusicGen melody conditioning) ----------
 def render_horror(d, seed):
     import torch, torchaudio
@@ -144,22 +169,55 @@ def assemble(cfg, d, nframes, out):
         f"[1:a]afade=t=in:st=0:d=2,afade=t=out:st={fout:.1f}:d=6[a]","-map","0:v","-map","[a]",
         "-c:v","copy","-c:a","aac","-b:a","256k","-movflags","+faststart","-shortest",out])
 
-def main():
-    genre=sys.argv[1]; seed=int(sys.argv[2]) if len(sys.argv)>2 else int(time.time())%100000
-    n=int(sys.argv[3]) if len(sys.argv)>3 else 33
-    cfg=ff_pools.GENRES[genre]; d=f"{ROOT}/runs/{genre}-{seed}"; os.makedirs(d,exist_ok=True)
-    print(f"== filmforge {genre} seed={seed} ==",flush=True)
+# ---------- pastoral: real generated motion (spec 01) ----------
+def run_pastoral(cfg, d, seed, n_shots, want_music, out):
+    """Video first, music second: the music is composed to the measured length of
+    the assembled cut, and the POC is judged on video alone."""
+    import ff_pastoral, ff_pastoral_music
+    silent = ff_pastoral.render(cfg, d, seed, n_shots)
+    if not want_music:
+        ff_pastoral.finalize_silent(silent, out)
+        print("music skipped (video-only cut)", flush=True)
+        return
+    vdur = ff_pastoral.probe_duration(silent)
+    print(f"music for {vdur:.1f}s...", flush=True)
+    meta = ff_pastoral_music.compose_pastoral(d, seed, vdur)
+    print("compose", meta, flush=True)
+    render_pastoral(d)
+    ff_pastoral.mux(silent, f"{d}/music.wav", out)
+
+
+def run_slideshow(cfg, d, seed, n, out):
     meta=ff_compose.compose(d, seed); print("compose",meta,flush=True)
     print("music...",flush=True)
     (render_orchestral if cfg['music']=='orchestral' else (lambda dd: render_horror(dd, seed)))(d)
     print("images...",flush=True); nf=gen_images(cfg, seed, n, f"{d}/frames")
-    print("assemble...",flush=True)
-    out=f"{ROOT}/films/{cfg['label']}-{seed}.mp4"; assemble(cfg, d, nf, out)
-    link=f"{SERVE_DIR}/{cfg['label']}-{seed}.mp4"
+    print("assemble...",flush=True); assemble(cfg, d, nf, out)
+
+
+def main():
+    argv=[a for a in sys.argv[1:] if not a.startswith("--")]
+    flags={a for a in sys.argv[1:] if a.startswith("--")}
+    genre=argv[0]; seed=int(argv[1]) if len(argv)>1 else int(time.time())%100000
+    cfg=ff_pools.GENRES[genre]
+    video = cfg.get('pipeline')=='video'
+    poc = "--poc" in flags
+    # POC: six chained shots from the head of the water journey, ~60s, judged on video.
+    default_n = (6 if poc else len(cfg['journey'])) if video else 33
+    n=int(argv[2]) if len(argv)>2 else default_n
+    want_music = "--no-music" not in flags and not (video and poc and "--music" not in flags)
+    d=f"{ROOT}/runs/{genre}-{seed}" + ("-poc" if poc else ""); os.makedirs(d,exist_ok=True)
+    print(f"== filmforge {genre} seed={seed} n={n}{' POC' if poc else ''} ==",flush=True)
+    label = cfg['label'] + ("-poc" if poc else "")
+    out=f"{ROOT}/films/{label}-{seed}.mp4"
+    if video: run_pastoral(cfg, d, seed, n, want_music, out)
+    else: run_slideshow(cfg, d, seed, n, out)
+    link=f"{SERVE_DIR}/{label}-{seed}.mp4"
     try: os.remove(link)
     except FileNotFoundError: pass
+    os.makedirs(SERVE_DIR, exist_ok=True)
     os.symlink(out, link)
     print(f"DONE {out}",flush=True)
-    print(f"URL {SERVE_URL}/{cfg['label']}-{seed}.mp4",flush=True)
+    print(f"URL {SERVE_URL}/{label}-{seed}.mp4",flush=True)
 
 if __name__=="__main__": main()
