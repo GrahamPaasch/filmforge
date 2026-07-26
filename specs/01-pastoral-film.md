@@ -166,6 +166,15 @@ water journey — and hand it to Graham to judge **before** committing to the fu
 Graham cannot listen to audio at the moment, so the POC is judged on **video only**; music can lag
 behind the visual proof.
 
+**Acceptance gate (Graham's own words, 2026-07-26).** No long render starts until a ~1-minute cut
+passes all three:
+
+1. **Not a slideshow** — the shots visibly continue from one another; it reads as one moving
+   camera through one place, not a sequence of unrelated vignettes.
+2. **Coherent** — it tells a story, in order, that a viewer can follow.
+3. **Not AI slop** — no invented or impossible motion (racing moons, syrup water, waterfalls where
+   none belong).
+
 ### POC VERDICT: REJECTED — still a slideshow (2026-07-26)
 
 Graham watched `films/pastoral-river-poc-1.mp4` (56s, six shots). His words: "it's still a
