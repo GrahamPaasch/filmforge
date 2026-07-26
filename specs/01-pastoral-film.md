@@ -1,5 +1,9 @@
 # Spec 01 — Pastoral: a real 24fps film (not a slideshow)
 
+> **SUPERSEDED 2026-07-26 by [spec 02](02-rubber-hose-cartoon.md).** The POC was rejected and
+> photoreal was abandoned as the wrong genre for a single 3090. Parked, not deleted: the journey
+> prose is good and may work with a much larger model someday. Build nothing further on this.
+
 Status: agreed via grill-me on 2026-07-25. Pipeline implemented 2026-07-25; blocked on
 prerequisites before it can render (see "Prerequisites" below — disk space and the driver
 mismatch are both still outstanding).
