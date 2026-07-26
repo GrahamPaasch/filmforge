@@ -20,6 +20,7 @@ Stages:
 import os, math, subprocess
 
 import ff_pastoral as P          # reuse the ComfyUI plumbing that already works
+import ff_farm                   # push the CPU stages onto the helper boxes
 
 # --- format -----------------------------------------------------------------
 W, H = 640, 480           # 4:3, both divisible by 16 for the VAE
@@ -214,11 +215,9 @@ def assemble(parts, dest):
                   f"setpts=PTS-STARTPTS[p{n}]")
         labels.append(f"[p{n}]")
     fc.append("".join(labels) + f"concat=n={len(parts)}:v=1:a=0[o]")
-    subprocess.run(["ffmpeg", "-y", *ins, "-filter_complex", ";".join(fc), "-map", "[o]",
-                    "-r", str(FPS), "-c:v", "libx264", "-preset", "medium", "-crf", "16",
-                    "-pix_fmt", "yuv420p", dest],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return dest
+    return ff_farm.ffmpeg_job(parts, ["-filter_complex", ";".join(fc), "-map", "[o]",
+                                      "-r", str(FPS), "-c:v", "libx264", "-preset", "medium",
+                                      "-crf", "16", "-pix_fmt", "yuv420p"], dest)
 
 
 def period_look(src, dest):
@@ -227,10 +226,8 @@ def period_look(src, dest):
     vf = ("format=gray,eq=contrast=1.15:brightness=0.01:gamma=0.98,"
           "noise=alls=9:allf=t+u,"          # per-frame grain, the way film moves
           "vignette=PI/5")
-    subprocess.run(["ffmpeg", "-y", "-i", src, "-vf", vf, "-c:v", "libx264",
-                    "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", dest],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return dest
+    return ff_farm.ffmpeg_job([src], ["-vf", vf, "-c:v", "libx264", "-preset", "medium",
+                                      "-crf", "16", "-pix_fmt", "yuv420p"], dest)
 
 
 def pillarbox(src, dest, out_w=1280, out_h=720):
@@ -238,18 +235,16 @@ def pillarbox(src, dest, out_w=1280, out_h=720):
     at and let the platform present it — never the other way round."""
     vf = (f"scale={int(out_h*4/3)}:{out_h}:flags=lanczos,"
           f"pad={out_w}:{out_h}:(ow-iw)/2:0:black")
-    subprocess.run(["ffmpeg", "-y", "-i", src, "-vf", vf, "-c:v", "libx264",
-                    "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", dest],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return dest
+    return ff_farm.ffmpeg_job([src], ["-vf", vf, "-c:v", "libx264", "-preset", "medium",
+                                      "-crf", "17", "-pix_fmt", "yuv420p"], dest)
 
 
 def mux(video, music_wav, dest):
-    subprocess.run(["ffmpeg", "-y", "-i", video, "-i", music_wav,
-                    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
-                    "-b:a", "256k", "-movflags", "+faststart", "-shortest", dest],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return dest
+    # Stream-copy the video, so this one is cheap enough to keep local.
+    return ff_farm.ffmpeg_job([video, music_wav],
+                              ["-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
+                               "-b:a", "256k", "-movflags", "+faststart", "-shortest"],
+                              dest, prefer_remote=False)
 
 
 def film_seconds(n_clips):
@@ -324,6 +319,10 @@ def make_toon(seed=1, character_png=None, n_clips=None, want_music=True):
         subprocess.run(["ffmpeg", "-y", "-i", wide, "-c", "copy",
                         "-movflags", "+faststart", out], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Generated video is enormous and this is the machine that can least afford to
+    # fill up (spec 01's first POC died at 20 GB free). Park the run on the big disk.
+    where = ff_farm.archive(d)
+    print(f"archived {where}" if where else "archive skipped (host down)", flush=True)
     print(f"DONE {out}", flush=True)
     return out
 
