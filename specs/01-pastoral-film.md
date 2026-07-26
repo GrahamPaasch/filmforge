@@ -166,6 +166,44 @@ water journey — and hand it to Graham to judge **before** committing to the fu
 Graham cannot listen to audio at the moment, so the POC is judged on **video only**; music can lag
 behind the visual proof.
 
+### POC VERDICT: REJECTED — still a slideshow (2026-07-26)
+
+Graham watched `films/pastoral-river-poc-1.mp4` (56s, six shots). His words: "it's still a
+slideshow. It's just a series of disconnected vignettes... it's AI slop." Specific defects he
+named:
+
+- the moon races across the sky and then disintegrates into a cloud (invented, physically absurd
+  motion the prompt never asked for);
+- one shot is unidentifiable — "kind of looks like the desert or cloud cover," nothing in the
+  journey;
+- a waterfall appears on a snow-capped mountain face where no waterfall belongs;
+- water is *poured like syrup* rather than falling or dripping — the fluid physics read as wrong;
+- overall: "it's not a movie, it's a slideshow of moving graphics. It doesn't tell a story."
+
+**Root cause of the slideshow — structural, not a prompt problem.** `render_shot()` in
+`ff_pastoral.py` begins **every** shot with a fresh RealVisXL text-to-image keyframe on its own
+seed. Chaining exists only *within* a shot (clip a's last frame starts clip b). So consecutive
+shots share no pixels, no lighting, no continuity of place — the film is 64 unrelated ten-second
+vignettes cross-dissolved together. It is a slideshow **by construction**, and no amount of
+prompt-writing fixes it. The journey prose itself is good; the assembly is what fails.
+
+The second defect (slop / broken physics) is separate: Wan 2.2 **5B** at 20 steps generating 121
+frames from a still invents large motion and cannot hold fluid dynamics. The stock negative
+prompt pushes *against* stillness, which makes over-motion more likely, not less.
+
+**Direction for v2 (not yet designed — grill Graham first):**
+
+1. **Chain across shots, not just within them.** Shot N+1 starts from shot N's last frame.
+   Generate a new keyframe only at deliberate section breaks (a handful, not 64), so the film
+   becomes one continuous descent through one place.
+2. **Trade length for coherence.** 64 shots is 64 chances to look wrong. A coherent 2-3 minutes
+   beats an incoherent 10.
+3. **Fix the motion quality** — fewer frames per generation, more steps, motion prompts that ask
+   for *small* motion, and revisit the 14B model now that the 5B ceiling is measured.
+4. Physically-impossible keyframes (waterfall on a snowcap) need grounding in the still prompts.
+
+Do NOT start another long render until v2 is specified and a fresh short POC is approved.
+
 ## Out of scope
 
 - Wan 2.2 14B (revisit only after the 5B POC is approved).
