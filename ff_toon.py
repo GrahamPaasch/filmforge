@@ -256,9 +256,84 @@ def film_seconds(n_clips):
     return n_clips * CLIP_FRAMES / FPS
 
 
+# ---------------------------------------------------------------------------
+# the film
+# ---------------------------------------------------------------------------
+
+# One scene anchor, repeated in every prompt. The spec's rule: don't swap the
+# subject mid-chain or the picture morphs. Only the ACTION changes, and only a
+# little, so each clip continues the last instead of re-imagining it.
+SCENE = ("a dancing cartoon skeleton playing a fiddle in a moonlit graveyard, "
+         "same skeleton, same graveyard, continuous shot")
+
+# Twelve clips x 5 bars = 60 bars = 120 s. The three-beat arc from spec 02.
+BEATS = [
+    # I. it starts playing
+    "the skeleton lifts the fiddle and begins to play, bow sawing steadily",
+    "the skeleton sways side to side as it plays, ribs bouncing with the beat",
+    # II. the world wakes up and dances
+    "the gravestones behind begin to rock gently in time with the music",
+    "the gravestones tip and sway together, the skeleton stamping one foot",
+    "more skeletons rise up behind and start to sway in time",
+    "the whole graveyard dances together, arms swinging in rhythm",
+    "the dancers kick their legs high in unison, bones rattling",
+    "the dance speeds up, everything bouncing faster and higher",
+    # III. it runs away and collapses
+    "the dancing turns wild, limbs flying loose in every direction",
+    "the skeleton bows faster and faster, the crowd whirling out of control",
+    "bones scatter and tumble apart mid-dance, the fiddle flying loose",
+    "everything drops to the ground at once and lies still, moonlight over the bones",
+]
+
+
+def make_toon(seed=1, character_png=None, n_clips=None, want_music=True):
+    """The whole short. Music first, then one continuous chain cut to its bars."""
+    import ff_toon_music
+
+    ROOT = "/home/gpaasch/filmforge"
+    beats = BEATS[:n_clips] if n_clips else BEATS
+    d = f"{ROOT}/runs/toon-{seed}"
+    os.makedirs(d, exist_ok=True)
+    P.preflight()
+
+    # 1. music FIRST — its bar count defines the film's length, not the other way round
+    n_bars = len(beats) * CLIP_BARS
+    music_wav = None
+    if want_music:
+        midi, meta = ff_toon_music.compose_toon(d, seed, n_bars)
+        print(f"music {meta}", flush=True)
+        import make_film as MF
+        music_wav = ff_toon_music.render_toon_music(
+            d, midi, f"{d}/music.wav", MF.FS, MF.SF, MF.SOX, MF.SFLIB)
+
+    # 2. the chain
+    if character_png is None:
+        character_png = f"{ROOT}/runs/toon-sheets-{seed}/char-skeleton-0.png"
+    print(f"chain from {os.path.basename(character_png)}: {len(beats)} clips "
+          f"= {film_seconds(len(beats)):.0f}s", flush=True)
+    parts = render_chain([f"{SCENE}, {b}" for b in beats], character_png, d, seed)
+
+    # 3. assemble, grade, pillarbox, mux
+    cut = assemble(parts, f"{d}/cut.mp4")
+    look = period_look(cut, f"{d}/look.mp4")
+    wide = pillarbox(look, f"{d}/wide.mp4")
+    out = f"{ROOT}/films/toon-skeleton-{seed}.mp4"
+    if music_wav:
+        mux(wide, music_wav, out)
+    else:
+        subprocess.run(["ffmpeg", "-y", "-i", wide, "-c", "copy",
+                        "-movflags", "+faststart", out], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f"DONE {out}", flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "sheets":
+    if len(sys.argv) > 1 and sys.argv[1] == "film":
+        make_toon(seed=int(sys.argv[2]) if len(sys.argv) > 2 else 1,
+                  n_clips=int(sys.argv[3]) if len(sys.argv) > 3 else None)
+    elif len(sys.argv) > 1 and sys.argv[1] == "sheets":
         seed = int(sys.argv[2]) if len(sys.argv) > 2 else 1
         out = f"{P.__dict__.get('ROOT', '/home/gpaasch/filmforge')}/runs/toon-sheets-{seed}"
         P.preflight()
