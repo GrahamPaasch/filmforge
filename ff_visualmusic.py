@@ -165,6 +165,35 @@ def draw_orbits(d, t, layers, spin):
                   width=max(1, int(2 + 7 * e)))
 
 
+def accents(d, t, bpm, beats_per_bar=4):
+    """Hard visual hits on the beat.
+
+    Measured: the audio and the MIDI agree to 4 ms, so the film was never actually
+    out of sync -- but long decay envelopes smeared every attack, so the eye had
+    nothing sharp to lock onto and it READ as unsynced. Perceived sync needs an
+    unmistakable, short event exactly on the beat.
+
+    Returns an invert flag for the downbeat, which is the strongest accent in the
+    silent-film vocabulary: one frame of reversed field."""
+    beat = 60.0 / bpm
+    pos = t / beat
+    idx = int(pos)
+    frac = pos - idx
+    # a snap ring that fires on every beat and is gone in a sixth of a second
+    hit = max(0.0, 1.0 - frac * beat / 0.16)
+    if hit > 0:
+        r = 30 + 300 * (1 - hit)
+        d.ellipse([CX - r, CY - r * 0.72, CX + r, CY + r * 0.72], outline=0,
+                  width=max(2, int(14 * hit)))
+        # corner ticks: they read even when the centre is busy
+        m = int(26 * hit)
+        for (x, y, sx, sy) in ((0, 0, 1, 1), (W, 0, -1, 1), (0, H, 1, -1), (W, H, -1, -1)):
+            d.line([(x, y), (x + sx * m * 3, y)], fill=0, width=8)
+            d.line([(x, y), (x, y + sy * m * 3)], fill=0, width=8)
+    # the downbeat inverts the whole frame for one frame
+    return (idx % beats_per_bar == 0) and frac < (1.0 / FPS) / beat
+
+
 DRAW = {"rings": draw_rings, "bars": draw_bars, "rays": draw_rays,
         "lattice": draw_lattice, "orbits": draw_orbits}
 
@@ -204,6 +233,10 @@ def render(seconds=60, seed=13, workdir="/home/gpaasch/filmforge/runs/visualmusi
         d = ImageDraw.Draw(img)
         ground(d, t, spin, energy)
         DRAW[motif](d, t, layers, spin)
+        flip = accents(d, t, meta["bpm"])
+        if flip:
+            img = Image.eval(img, lambda v: 255 - v)
+            d = ImageDraw.Draw(img)
         # a held frame at the section change would read as a cut; a shrinking iris
         # over the first half-bar reads as an edit
         into = (t / bar_s) % bars_per_section
