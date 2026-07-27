@@ -59,6 +59,39 @@ def hose(d, p0, p1, p2, width=9):
         d.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=INK)
 
 
+def solve_two_bone(root, target, l1, l2, bend_forward=True, margin=4.0):
+    """Analytic two-link IK by circle intersection. Returns (joint, target, clamped).
+
+    This replaces the guessed knee position that made the first bicycle read wrong.
+    The pedal is authoritative: it drives the ankle, the ankle drives this solve, and
+    the knee falls out of the mathematics rather than out of a fudge factor.
+
+    Both legal solutions exist -- the chain can bend either way -- so we pick the
+    branch on the forward side and keep it, which is what stops the knee flipping
+    inside-out near the top and bottom of the stroke.
+    """
+    dx, dy = target[0] - root[0], target[1] - root[1]
+    dist = math.hypot(dx, dy)
+    # Keep away from both singularities: fully folded, and fully extended (a locked
+    # straight leg has no silhouette and reads as a stick).
+    lo, hi = abs(l1 - l2) + margin, l1 + l2 - margin
+    safe = min(max(dist, lo), hi)
+    clamped = abs(safe - dist) > 1e-9
+    if dist < 1e-9:
+        target, dist = (root[0] + safe, root[1]), safe
+    elif clamped:
+        target = (root[0] + dx / dist * safe, root[1] + dy / dist * safe)
+        dist = safe
+    ux, uy = (target[0] - root[0]) / dist, (target[1] - root[1]) / dist
+    a = (l1 * l1 - l2 * l2 + dist * dist) / (2 * dist)
+    h = math.sqrt(max(l1 * l1 - a * a, 0.0))
+    mx, my = root[0] + a * ux, root[1] + a * uy
+    c1 = (mx - h * uy, my + h * ux)
+    c2 = (mx + h * uy, my - h * ux)
+    knee = max((c1, c2), key=lambda c: c[0]) if bend_forward else min((c1, c2), key=lambda c: c[0])
+    return knee, target, clamped
+
+
 def circle(d, c, r, fill=None, outline=INK, width=5):
     d.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=fill,
               outline=outline, width=width)
@@ -124,15 +157,20 @@ def draw_rider(d, crank, bars, phase, bob):
     d.polygon([(shoulder[0] - 20, shoulder[1] + 6), (shoulder[0] + 20, shoulder[1] + 6),
                (hip[0] + 34, hip[1] + 16), (hip[0] - 34, hip[1] + 16)], fill=INK)
 
-    # legs: pedals are 180 degrees apart on the same crank
-    pedal_r = 22
-    for k, side in enumerate((0, math.pi)):
+    # Legs. The two cranks stay exactly 180 degrees apart, the pedal drives the
+    # ankle, and the knee is SOLVED, not placed. Proportions follow the researched
+    # starting set: shin = 0.96 x thigh, crank radius = 0.35 x thigh.
+    THIGH, SHIN, PEDAL_R = 62.0, 59.5, 21.7
+    # far leg first, so near-side geometry always draws over it (stable draw order)
+    for k, side in enumerate((math.pi, 0)):
         a = phase + side
-        pedal = (crank[0] + pedal_r * math.cos(a), crank[1] + pedal_r * math.sin(a))
-        knee = ((hip[0] + pedal[0]) / 2 + 26, (hip[1] + pedal[1]) / 2 - 6)
-        hose(d, hip, knee, pedal, width=11 if k == 0 else 9)
-        # shoe
-        d.ellipse([pedal[0] - 12, pedal[1] - 6, pedal[0] + 12, pedal[1] + 8], fill=INK)
+        pedal = (crank[0] + PEDAL_R * math.cos(a), crank[1] + PEDAL_R * math.sin(a))
+        hip_k = (hip[0] + (3 if k == 0 else 0), hip[1] - (2 if k == 0 else 0))
+        knee, ankle, _ = solve_two_bone(hip_k, pedal, THIGH, SHIN,
+                                        bend_forward=(DIR > 0), margin=4.0)
+        # bend the hose outward from the solved knee so it reads as rubber, not bone
+        hose(d, hip_k, knee, ankle, width=9 if k == 0 else 11)
+        d.ellipse([ankle[0] - 12, ankle[1] - 6, ankle[0] + 12, ankle[1] + 8], fill=INK)
 
     # arms reach to the handlebars, with a little counter-bob
     elbow = ((shoulder[0] + bars[0]) / 2 - 4, (shoulder[1] + bars[1]) / 2 + 20 - bob)
@@ -153,21 +191,49 @@ def draw_rider(d, crank, bars, phase, bob):
     circle(d, (head_c[0] - 22, head_c[1] + 12), 5, fill=INK, outline=INK, width=1)
 
 
+def tempo_curve(t, total_t):
+    """How hard she is pedalling, over the film. A single unvarying loop reads as a
+    GIF, not a film, so the ride has a shape: set off, ease, push up a rise, then
+    freewheel down it. Returned as a multiplier on cadence and travel speed.
+
+    Everything downstream reads off this, so cadence, scroll and bounce can never
+    disagree with each other -- which is what would break the illusion."""
+    f = t / max(1e-6, total_t)
+    if f < 0.15:
+        return 0.65 + 2.3 * f                       # setting off
+    if f < 0.45:
+        return 1.0                                  # cruising
+    if f < 0.72:
+        return 1.0 + 0.55 * (f - 0.45) / 0.27       # labouring up the rise
+    return 1.55 - 0.75 * (f - 0.72) / 0.28          # freewheeling down
+
+
 def frame(n, total):
     """One frame. Time is the only input; everything else is derived from it, which
     is why nothing can drift."""
     t = n / FPS
+    total_t = total / FPS
     img = Image.new("L", (W, H), PAPER)
     d = ImageDraw.Draw(img)
 
-    # ONE pedal revolution per beat. This is the sync -- not an edit, a fact.
-    phase = 2 * math.pi * (t / BEAT)
-    scroll = DIR * t * 210
-    bob = 4 * math.sin(phase * 2)          # body bobs twice per revolution
+    # Cadence is integrated, not multiplied: phase must be the running total of a
+    # CHANGING rate, or the pedals jump backwards whenever the speed changes.
+    step = 1.0 / FPS
+    phase = 0.0
+    dist = 0.0
+    for k in range(n):
+        r = tempo_curve(k * step, total_t)
+        phase += 2 * math.pi * step / BEAT * r
+        dist += 210 * step * r
+    rate = tempo_curve(t, total_t)
+
+    scroll = DIR * dist
+    bob = 4 * rate * math.sin(phase * 2)
 
     draw_background(d, scroll)
-    # the whole bike rides a gentle bounce so it never sits dead-centre
-    cy = H * 0.62 - 4 + 5 * math.sin(phase)
+    # a long rise and fall in the road, so the ride goes somewhere
+    grade = 26 * math.sin(math.pi * min(1.0, max(0.0, (t / total_t - 0.15) / 0.75)))
+    cy = H * 0.62 - 4 + 5 * math.sin(phase) - grade
     crank, bars = draw_bicycle(d, W * 0.42, cy, DIR * phase)
     draw_rider(d, crank, bars, phase, bob)
     return img
