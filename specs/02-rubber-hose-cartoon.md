@@ -218,6 +218,39 @@ pipeline is now puppet-plus-ControlNet. New motion is authored as code (a walk c
 chase) and is reusable forever — which is exactly how the 1930s studios worked, with a library of
 cycles.
 
+## What one night actually established (2026-07-26)
+
+Seven approaches, one accepted. Recorded so none of it is re-learned.
+
+| # | Approach | Verdict |
+|---|---|---|
+| 1 | Wan 2.2, chained, off-native resolution | distorted further every clip |
+| 2 | Wan 2.2, native res, repaired handoffs | "a hybrid of realistic and cartoon... a literal horror show" |
+| 3 | AnimateDiff over a cartoon checkpoint | finally a cartoon, but "melting in and out of itself" at the window seams |
+| 4 | Code puppet + ControlNet paint | good motion, but every frame independently re-imagined |
+| 5 | Paint one keyframe, transport by rig | no flicker at all, but the art underneath was crude |
+| 6 | Generated pose cards, cut and rigged | beautiful art, but cutouts leave holes and inpainting invents extra limbs |
+| 7 | **Abstract visual music, stepped on the beat** | **accepted — "this one's locked"** |
+
+### The two findings that matter
+
+**1. Character performance was the wrong premise.** It is the most labour-intensive
+thing in animation; studios hired rooms of people for it. Every failure above traces
+back to trying to get it for free. Fischinger and McLaren built respected films from
+moving shapes cut to music, and that form is made of exactly what this project is
+strongest at: deterministic geometry, fixed tempo, and a score we wrote and can read
+note by note.
+
+**2. Perceived sync is discrete change, not motion.** The first visual-music film had
+audio and MIDI aligned to **4 ms** and still read as unsynced, because everything on
+screen moved continuously and the eye had no event to match against the ear. Making
+the picture *hold perfectly still and then snap* at each beat — no interpolation
+anywhere — fixed it immediately. This is also why 1930s cartoons pose-hold on the
+beat rather than easing through it.
+
+Measure before diagnosing: "it's out of sync" was false, and the real fault was two
+layers away from where it appeared.
+
 ## Out of scope
 
 - Photoreal anything.
