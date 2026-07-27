@@ -28,10 +28,10 @@ BPM = 96
 BEAT = 60.0 / BPM                 # 0.625 s
 INK = 0
 PAPER = 255
-# Which way she rides. Everything that implies travel -- wheel spin, scrolling
-# scenery, road dashes -- reads off this ONE sign, so the direction can never get
-# half-flipped again. (It was: the road and the wheels both ran backwards.)
-DIR = -1
+# She is DRAWN facing +x, so she travels +x. Everything else follows from that one
+# fact: the scenery must move the other way (-x on screen), and the wheels must
+# roll forward. There is no free sign to get wrong.
+WHEEL_R = 52.0
 
 
 # ---------------------------------------------------------------------------
@@ -130,10 +130,19 @@ def draw_bicycle(d, cx, cy, wheel_angle):
     front = (cx + 62, cy)
     for hub in (back, front):
         circle(d, hub, r, outline=INK, width=6)
-        for k in range(6):
-            a = wheel_angle + k * math.pi / 3
-            d.line([hub, (hub[0] + r * 0.86 * math.cos(a),
-                          hub[1] + r * 0.86 * math.sin(a))], fill=INK, width=3)
+        # THREE spokes, not six. Rotation is only legible if the pattern advances
+        # less than its own symmetry angle per frame; six-fold symmetry at 12fps
+        # aliases and the wheel reads as frozen or spinning backwards.
+        for k in range(3):
+            a = wheel_angle + k * 2 * math.pi / 3
+            d.line([(hub[0] - r * 0.86 * math.cos(a), hub[1] - r * 0.86 * math.sin(a)),
+                    (hub[0] + r * 0.86 * math.cos(a), hub[1] + r * 0.86 * math.sin(a))],
+                   fill=INK, width=3)
+        # one heavy valve mark: an asymmetric feature is what actually sells spin
+        d.ellipse([hub[0] + r * 0.7 * math.cos(wheel_angle) - 5,
+                   hub[1] + r * 0.7 * math.sin(wheel_angle) - 5,
+                   hub[0] + r * 0.7 * math.cos(wheel_angle) + 5,
+                   hub[1] + r * 0.7 * math.sin(wheel_angle) + 5], fill=INK)
         circle(d, hub, 6, fill=INK, outline=INK, width=1)
     crank = (cx, cy)
     seat = (cx - 26, cy - 74)
@@ -230,14 +239,17 @@ def frame(n, total):
         dist += 210 * step * r
     rate = tempo_curve(t, total_t)
 
-    scroll = DIR * dist
+    scroll = dist                      # she moves +x, so the world slides -x
     bob = 4 * rate * math.sin(phase * 2)
 
     draw_background(d, scroll)
     # a long rise and fall in the road, so the ride goes somewhere
     grade = 26 * math.sin(math.pi * min(1.0, max(0.0, (t / total_t - 0.15) / 0.75)))
     cy = H * 0.62 - 4 + 5 * math.sin(phase) - grade
-    crank, bars = draw_bicycle(d, W * 0.42, cy, DIR * phase)
+    # Rolling without slipping: wheel angle is distance over radius. Deriving it
+    # from pedal phase (as before) span the wheels ~3x too fast, straight into
+    # the aliasing band.
+    crank, bars = draw_bicycle(d, W * 0.42, cy, dist / WHEEL_R)
     draw_rider(d, crank, bars, phase, bob)
     return img
 
