@@ -183,6 +183,13 @@ def render(seconds=60, seed=11, workdir="/home/gpaasch/filmforge/runs/violist-sh
     play_card = load_plate("play")
     scale_to_card = play_card.height / 768.0
     body_plate, bow_plate = split_bow(_card_space(play_card))
+    # Repair the diagonal hole the bow left across her dress, once, before animating.
+    hole = Image.new("L", (768, 768), 0)
+    hd = ImageDraw.Draw(hole)
+    hd.polygon(BOW_QUAD, fill=255)
+    (hx, hy), hr = BOW_HAND
+    hd.ellipse([hx - hr, hy - hr, hx + hr, hy + hr], fill=255)
+    body_plate = inpaint_body(body_plate, hole.convert("RGB"), seed=seed)
     rigged = {"body": body_plate, "bow": bow_plate, "scale": scale_to_card}
     plan = shot_plan(n_bars)
     bar_s = ff_toon_music.BAR_SECONDS
@@ -260,6 +267,72 @@ def render(seconds=60, seed=11, workdir="/home/gpaasch/filmforge/runs/violist-sh
                     "-movflags", "+faststart", out], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print(f"DONE {out}", flush=True)
+    return out
+
+
+
+
+# ---------------------------------------------------------------------------
+# repairing the hole the cutout leaves
+# ---------------------------------------------------------------------------
+
+def inpaint_body(body_rgba, mask_img, seed=11,
+                 cache="/home/gpaasch/filmforge/assets/poses/play_body_filled.png"):
+    """Fill in the girl behind the bow, once.
+
+    Cutting the bow out leaves a diagonal hole across her dress, and sliding the bow
+    exposed it -- Graham: "the space where her arm used to be is just a cutout...
+    her stomach is just cut off and moving back and forth."
+
+    So repair the plate before animating it: one inpaint call reconstructs the dress
+    and arm that the bow was covering, and from then on the bow slides over a
+    complete character. One diffusion call, cached forever.
+    """
+    import ff_pastoral as P
+    import ff_puppet_render as R
+    if os.path.exists(cache):
+        return Image.open(cache).convert("RGBA")
+
+    flat = Image.new("RGB", body_rgba.size, (255, 255, 255))
+    flat.paste(body_rgba, mask=body_rgba.getchannel("A"))
+    src = "/tmp/_body_src.png"
+    msk = "/tmp/_body_mask.png"
+    flat.save(src)
+    mask_img.save(msk)
+    h_src = P.upload_image(src)
+    h_msk = P.upload_image(msk)
+    wf = {
+        "4":  {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": R.CKPT}},
+        "10": {"class_type": "LoadImage", "inputs": {"image": h_src}},
+        "15": {"class_type": "LoadImage", "inputs": {"image": h_msk}},
+        "16": {"class_type": "ImageToMask", "inputs": {"image": ["15", 0], "channel": "red"}},
+        "11": {"class_type": "VAEEncodeForInpaint", "inputs": {
+            "pixels": ["10", 0], "vae": ["4", 2], "mask": ["16", 0], "grow_mask_by": 8}},
+        "6":  {"class_type": "CLIPTextEncode", "inputs": {
+            "text": "a 1930s cartoon girl in a black dress, smooth clean ink drawing, "
+                    "black and white, plain white background", "clip": ["4", 1]}},
+        "7":  {"class_type": "CLIPTextEncode", "inputs": {
+            "text": "bow, stick, line across body, color, blurry, text", "clip": ["4", 1]}},
+        "3":  {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": 22, "cfg": 7.0, "sampler_name": "euler",
+            "scheduler": "normal", "denoise": 1.0,
+            "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0],
+            "latent_image": ["11", 0]}},
+        "8":  {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+        "9":  {"class_type": "SaveImage", "inputs": {
+            "filename_prefix": f"ffbodyfill_{seed}", "images": ["8", 0]}},
+    }
+    outs = P.run_workflow(wf, timeout_s=900)
+    refs = (outs.get("9") or {}).get("images") or []
+    if not refs:
+        return body_rgba
+    P._fetch(refs[0], cache)
+    filled = Image.open(cache).convert("RGB")
+    # re-cut the background so the repaired plate is still a transparent cutout
+    a = np.asarray(filled).astype(np.int16)
+    alpha = (a.min(axis=2) < 235).astype(np.uint8) * 255
+    out = Image.fromarray(np.dstack([np.asarray(filled), alpha]), "RGBA")
+    out.save(cache)
     return out
 
 
