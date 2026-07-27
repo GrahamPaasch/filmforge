@@ -29,6 +29,15 @@ POSES = ["play", "lift", "spin", "bow", "close"]
 ART = "/home/gpaasch/filmforge/assets/poses"
 
 
+def _card_space(plate):
+    """Put a loaded plate back on a 768x768 canvas so the hand-read coordinates
+    above still line up after cropping and scaling."""
+    canvas = Image.new("RGBA", (768, 768), (0, 0, 0, 0))
+    p = plate.resize((int(plate.width * 768 / plate.height), 768), Image.LANCZOS)
+    canvas.alpha_composite(p, ((768 - p.width) // 2, 0))
+    return canvas
+
+
 def load_plate(name, height_frac=0.86):
     """One pose card, background knocked out, scaled to sit on the stage floor."""
     im = Image.open(f"{ART}/{name}.png").convert("RGB")
@@ -64,6 +73,35 @@ def load_plate(name, height_frac=0.86):
     h = int(H * height_frac)
     rgba = rgba.resize((max(1, int(rgba.width * h / rgba.height)), h), Image.LANCZOS)
     return rgba
+
+
+# ---------------------------------------------------------------------------
+# cutout rigging of the generated art
+# ---------------------------------------------------------------------------
+
+# Read off the 'play' pose card (768x768) by eye, the way a cutout animator cuts a
+# puppet: the bow runs as a long diagonal from her hand at the lower left up past
+# the scroll, and the bow hand grips the frog. Cutting the bow AND the hand as one
+# rigid piece lets it slide along its own axis, which is what bowing actually is.
+BOW_AXIS = (0.713, -0.701)          # unit vector along the bow, lower-left -> upper-right
+BOW_QUAD = [(300, 415), (352, 330), (660, 60), (612, 118)]   # the stick
+BOW_HAND = ((352, 356), 52)         # centre, radius -- travels with the bow
+BOW_TRAVEL = 46.0                   # px at card scale, half-excursion
+
+
+def split_bow(card):
+    """Return (body_without_bow, bow_piece) for the play card, in card space."""
+    mask = Image.new("L", card.size, 0)
+    md = ImageDraw.Draw(mask)
+    md.polygon(BOW_QUAD, fill=255)
+    (hx, hy), hr = BOW_HAND
+    md.ellipse([hx - hr, hy - hr, hx + hr, hy + hr], fill=255)
+    bow = card.copy()
+    bow.putalpha(Image.composite(card.getchannel("A"), Image.new("L", card.size, 0), mask))
+    body = card.copy()
+    inv = Image.eval(mask, lambda v: 255 - v)
+    body.putalpha(Image.composite(card.getchannel("A"), Image.new("L", card.size, 0), inv))
+    return body, bow
 
 
 def draw_world(d, t, pulse, drift):
@@ -140,6 +178,12 @@ def render(seconds=60, seed=11, workdir="/home/gpaasch/filmforge/runs/violist-sh
     print(f"music {meta}; {len(notes)} onsets", flush=True)
 
     plates = {p: load_plate(p) for p in POSES}
+    # The play pose is rigged: its bow is a separate piece that slides on the beat,
+    # so the hero shots actually play instead of holding still.
+    play_card = load_plate("play")
+    scale_to_card = play_card.height / 768.0
+    body_plate, bow_plate = split_bow(_card_space(play_card))
+    rigged = {"body": body_plate, "bow": bow_plate, "scale": scale_to_card}
     plan = shot_plan(n_bars)
     bar_s = ff_toon_music.BAR_SECONDS
     total = int(seconds * FPS)
@@ -170,6 +214,7 @@ def render(seconds=60, seed=11, workdir="/home/gpaasch/filmforge/runs/violist-sh
         base = img.convert("RGBA")
 
         plate = plates[shot["pose"]]
+        rig_this_shot = shot["pose"] == "play"
         # camera: a slow move across the held pose is what keeps a static drawing alive
         if shot["move"] == "push":
             sc = 1.00 + 0.10 * f
@@ -178,8 +223,23 @@ def render(seconds=60, seed=11, workdir="/home/gpaasch/filmforge/runs/violist-sh
         else:
             sc = 1.04
         dx = int((-30 + 60 * f) if shot["move"] == "drift" else 0)
-        pw, ph = int(plate.width * sc), int(plate.height * sc)
-        p = plate.resize((pw, ph), Image.LANCZOS)
+        if rig_this_shot:
+            # bow position comes from the score: one stroke per note, eased, and the
+            # hand travels with it so the wrist stretches like a rubber hose
+            pos, _pitch, _atk = V.bow_state(t, notes)
+            off = (pos - 0.5) * 2 * BOW_TRAVEL
+            hb, hw = rigged["body"], rigged["bow"]
+            comp = Image.new("RGBA", hb.size, (0, 0, 0, 0))
+            comp.alpha_composite(hb)
+            comp.alpha_composite(hw, (int(round(BOW_AXIS[0] * off)),
+                                      int(round(BOW_AXIS[1] * off))))
+            src = comp.crop(comp.getbbox())
+            h = int(H * 0.86)
+            src = src.resize((max(1, int(src.width * h / src.height)), h), Image.LANCZOS)
+        else:
+            src = plate
+        pw, ph = int(src.width * sc), int(src.height * sc)
+        p = src.resize((pw, ph), Image.LANCZOS)
         base.alpha_composite(p, ((W - pw) // 2 + dx, int(H * 0.86) - ph))
 
         d2 = ImageDraw.Draw(base)
