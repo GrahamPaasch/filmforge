@@ -38,7 +38,7 @@ def host_up(host):
         return False
 
 
-def remote_ffmpeg(inputs, argv_after_inputs, dest, host=None):
+def remote_ffmpeg(inputs, argv_after_inputs, dest, host=None, input_args=None):
     """Run one ffmpeg job on the encode host.
 
     `inputs` is the ordered list of local input paths; `argv_after_inputs` is
@@ -62,7 +62,10 @@ def remote_ffmpeg(inputs, argv_after_inputs, dest, host=None):
         rout = f"{job}/out{os.path.splitext(dest)[1] or '.mp4'}"
         cmd = ["ffmpeg", "-y"]
         for rp in remote_inputs:
-            cmd += ["-i", rp]
+            # Input options (-framerate, -f, -r on the read side) MUST precede their
+            # -i or ffmpeg silently ignores them. Passing -framerate after the input
+            # is what turned a 30-frame shot into 16 frames of output.
+            cmd += list(input_args or []) + ["-i", rp]
         cmd += list(argv_after_inputs) + [rout]
         _run(SSH + [f"gpaasch@{host}", " ".join(shlex.quote(c) for c in cmd)])
         _run(["scp", "-q", "-o", "BatchMode=yes", f"gpaasch@{host}:{rout}", dest])
@@ -76,14 +79,14 @@ def remote_ffmpeg(inputs, argv_after_inputs, dest, host=None):
             pass
 
 
-def ffmpeg_job(inputs, argv_after_inputs, dest, prefer_remote=True):
+def ffmpeg_job(inputs, argv_after_inputs, dest, prefer_remote=True, input_args=None):
     """Encode on the helper box when we can, locally when we can't. One call site
     for every heavy ffmpeg stage in the pipeline."""
-    if prefer_remote and remote_ffmpeg(inputs, argv_after_inputs, dest):
+    if prefer_remote and remote_ffmpeg(inputs, argv_after_inputs, dest, input_args=input_args):
         return dest
     cmd = ["ffmpeg", "-y"]
     for p in inputs:
-        cmd += ["-i", p]
+        cmd += list(input_args or []) + ["-i", p]
     cmd += list(argv_after_inputs) + [dest]
     _run(cmd)
     return dest
