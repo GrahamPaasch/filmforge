@@ -114,8 +114,10 @@ class ViolinRig:
     def arms(self, v, b, slide):
         r_sh = (v["chest"][0] + self.shoulder_dx * 0.4, v["chest"][1] - 62)
         l_sh = (v["chest"][0] - self.shoulder_dx * 0.4, v["chest"][1] - 62)
+        # Bow-arm elbow points DOWN and OUT, away from the instrument -- the other
+        # branch put it above the bow, which is anatomically impossible for a player.
         r_elbow, r_hand, r_cl = two_bone_ik(r_sh, b["grip"], self.upper, self.fore,
-                                            bend_sign=+1)
+                                            bend_sign=-1)
         ux, uy = v["axis"]
         fb = (v["tail"][0] + ux * (150 + 40 * slide),
               v["tail"][1] + uy * (150 + 40 * slide))
