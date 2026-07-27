@@ -31,21 +31,36 @@ SIZE = 768
 
 # Read by eye off the coordinate grid in films/play-grid.png. Z-order back to front.
 LAYERS = [
-    ("hair_back",  2, [(238, 30), (330, 8), (450, 20), (480, 90), (455, 190), (250, 180)]),
-    ("far_arm",    4, [(455, 215), (520, 230), (585, 250), (600, 285), (540, 280), (452, 268)]),
-    ("legs",       6, [(300, 400), (440, 400), (450, 730), (300, 730)]),
-    ("torso",      8, [(272, 195), (470, 195), (500, 430), (250, 430)]),
-    ("violin",    10, [(345, 285), (420, 205), (600, 215), (655, 262), (600, 300), (420, 305)]),
-    ("bow_arm",   12, [(268, 225), (330, 245), (372, 330), (360, 375), (300, 360), (258, 300)]),
-    ("bow_hand",  14, [(322, 328), (392, 328), (392, 392), (322, 392)]),
-    ("bow",       16, [(300, 415), (352, 330), (660, 60), (612, 118)]),
-    ("head",      18, [(255, 25), (470, 25), (480, 200), (250, 200)]),
+    # Re-read against a 48px grid. Notes on what each boundary follows:
+    #   head    -- hair silhouette down to the collar line at y~205
+    #   torso   -- bodice only; the skirt flares below y~380 and is its own shape
+    #   legs    -- from under the skirt hem to the shoes on the stage ellipse
+    #   far_arm -- her left arm, shoulder at (455,225) out to the fingerboard hand
+    #   bow_arm -- her right arm, shoulder (300,225) down to the gripping hand
+    ("hair_back",  2, [(236, 60), (300, 20), (420, 22), (474, 74), (474, 170),
+                       (430, 196), (270, 196), (236, 150)]),
+    ("legs",       6, [(322, 430), (436, 430), (452, 700), (416, 736), (330, 736),
+                       (308, 700)]),
+    ("far_arm",    4, [(444, 210), (474, 214), (530, 236), (566, 250), (566, 292),
+                       (516, 288), (462, 268), (440, 246)]),
+    ("skirt",      7, [(252, 372), (300, 356), (452, 356), (506, 376), (494, 446),
+                       (392, 462), (268, 444)]),
+    ("torso",      8, [(300, 196), (452, 196), (462, 300), (452, 380), (300, 380),
+                       (290, 300)]),
+    ("violin",    10, [(352, 288), (392, 210), (516, 202), (596, 232), (634, 250),
+                       (628, 282), (556, 288), (444, 306), (376, 306)]),
+    ("bow_arm",   12, [(276, 214), (322, 226), (352, 300), (368, 342), (352, 372),
+                       (306, 356), (268, 292), (262, 240)]),
+    ("bow_hand",  14, [(318, 326), (382, 326), (382, 386), (318, 386)]),
+    ("bow",       16, [(306, 404), (350, 344), (642, 56), (604, 106)]),
+    ("head",      18, [(258, 34), (438, 30), (474, 96), (466, 176), (410, 206),
+                       (300, 206), (256, 160)]),
 ]
 
 # How far each layer is grown under its neighbours. A joint that swings 30 degrees
 # needs overlap proportional to the limb's width, not a couple of pixels.
-OVERLAP = {"bow_arm": 26, "far_arm": 26, "torso": 30, "legs": 22, "head": 18,
-           "hair_back": 14, "violin": 8, "bow": 6, "bow_hand": 14}
+OVERLAP = {"bow_arm": 26, "far_arm": 26, "torso": 30, "skirt": 20, "legs": 22,
+           "head": 18, "hair_back": 14, "violin": 8, "bow": 6, "bow_hand": 14}
 
 
 def alpha_of(im, cut=205):
