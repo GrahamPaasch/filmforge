@@ -28,6 +28,10 @@ BPM = 96
 BEAT = 60.0 / BPM                 # 0.625 s
 INK = 0
 PAPER = 255
+# Which way she rides. Everything that implies travel -- wheel spin, scrolling
+# scenery, road dashes -- reads off this ONE sign, so the direction can never get
+# half-flipped again. (It was: the road and the wheels both ran backwards.)
+DIR = -1
 
 
 # ---------------------------------------------------------------------------
@@ -158,13 +162,13 @@ def frame(n, total):
 
     # ONE pedal revolution per beat. This is the sync -- not an edit, a fact.
     phase = 2 * math.pi * (t / BEAT)
-    scroll = t * 210
+    scroll = DIR * t * 210
     bob = 4 * math.sin(phase * 2)          # body bobs twice per revolution
 
     draw_background(d, scroll)
     # the whole bike rides a gentle bounce so it never sits dead-centre
     cy = H * 0.62 - 4 + 5 * math.sin(phase)
-    crank, bars = draw_bicycle(d, W * 0.42, cy, phase)
+    crank, bars = draw_bicycle(d, W * 0.42, cy, DIR * phase)
     draw_rider(d, crank, bars, phase, bob)
     return img
 
