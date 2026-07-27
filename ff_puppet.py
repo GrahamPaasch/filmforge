@@ -166,8 +166,11 @@ def draw_rider(d, crank, bars, phase, bob):
         a = phase + side
         pedal = (crank[0] + PEDAL_R * math.cos(a), crank[1] + PEDAL_R * math.sin(a))
         hip_k = (hip[0] + (3 if k == 0 else 0), hip[1] - (2 if k == 0 else 0))
+        # The knee bends toward the way she FACES, which the artwork fixes as +x.
+        # This is not DIR: DIR is which way the scenery travels. Tying the two
+        # together is what put the knees on backwards.
         knee, ankle, _ = solve_two_bone(hip_k, pedal, THIGH, SHIN,
-                                        bend_forward=(DIR > 0), margin=4.0)
+                                        bend_forward=True, margin=4.0)
         # bend the hose outward from the solved knee so it reads as rubber, not bone
         hose(d, hip_k, knee, ankle, width=9 if k == 0 else 11)
         d.ellipse([ankle[0] - 12, ankle[1] - 6, ankle[0] + 12, ankle[1] + 8], fill=INK)
