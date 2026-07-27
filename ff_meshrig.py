@@ -90,15 +90,24 @@ class ViolinRig:
                 "axis": (ux, uy), "normal": (-uy, ux), "length": L}
 
     def bow(self, v, phase):
-        """Placed so the hair sits in the string corridor; `phase` 0..1 is the
-        stroke position from frog to tip. The grip landmark is what the arm will
-        be solved to."""
+        """Bowing is the bow travelling along ITS OWN length while the contact point
+        stays put on the string.
+
+        The first version slid the contact up and down the string instead, which is
+        a glissando of contact point, not a bow stroke -- Graham saw it immediately
+        as "going forward and back rather than side to side". The bow crosses the
+        strings at roughly a right angle, so its travel is along the violin's NORMAL,
+        not its axis.
+        """
         ux, uy = v["axis"]
         nx, ny = v["normal"]
-        contact = (v["tail"][0] + ux * (52 + 86 * phase),
-                   v["tail"][1] + uy * (52 + 86 * phase))
-        grip = (contact[0] - nx * 70 + ux * 10, contact[1] - ny * 70 + uy * 10)
-        tip = (contact[0] + nx * 96, contact[1] + ny * 96)
+        # contact sits at a fixed point between bridge and fingerboard
+        contact = (v["tail"][0] + ux * 96, v["tail"][1] + uy * 96)
+        # phase 0..1 = frog to tip; the whole stick slides along the normal
+        travel = 150.0
+        off = (phase - 0.5) * travel
+        grip = (contact[0] - nx * (78 + off), contact[1] - ny * (78 + off))
+        tip = (contact[0] + nx * (104 - off), contact[1] + ny * (104 - off))
         return {"contact": contact, "grip": grip, "tip": tip}
 
     # --- arms are consequences --------------------------------------------
