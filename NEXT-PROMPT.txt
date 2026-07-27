@@ -1,0 +1,27 @@
+Disk is cleared — / now has 288 GB free (was 20 GB). Both of your blockers are addressed below.
+Proceed:
+
+1. Run bin/fetch_wan.sh to download the Wan 2.2 TI2V-5B weights, restart ComfyUI, and confirm the
+   nodes actually load the model.
+
+2. nvidia-smi / NVML mismatch: do NOT reboot on your own — Graham is using this machine. Instead
+   prove the GPU path works by running one real Wan generation end to end, and report what you see.
+   If it works, note in the spec that the reboot is deferred, not required.
+
+3. Scope fix: Graham wants a literal 10 minutes, so add the 4 extra journey entries you flagged
+   (60 shots = 9.30 min -> 64 shots = 9.9 min). Keep the ordered summit-to-valley journey intact.
+
+4. Then render the POC: ./forge pastoral 1 --poc — the ~57 s six-shot cut, video only. Graham
+   cannot listen to audio right now, so do not block on music.
+
+5. Put the POC mp4 in /home/gpaasch/filmforge/films/ — a static server is already running on that
+   directory, so it will be reachable at http://192.168.5.21:8009/<filename>.mp4. Report the URL.
+
+6. filmforge is now a git repo (baseline commit e051811). Commit incrementally with clear messages
+   as you go, so a usage cutoff can't lose your work. runs/, films/, and assets/ are gitignored.
+
+7. STOP after the POC. Do not start the full 10-minute render until Graham has watched the cut and
+   approved it.
+
+Reminder of the two hard rules from the spec: real generated motion via frame-chaining only — never
+interpolation or time-stretch to reach shot length — and no text on screen anywhere.

@@ -30,9 +30,18 @@ CONTROLNET = "control_v11p_sd15_lineart.safetensors"
 # the rig (which is the failure we are trying to eliminate); too high and it just
 # traces the input and adds nothing.
 CN_STRENGTH = 0.95
-DENOISE = 1.0
-STEPS = 18
-CFG = 7.0
+# THE consistency fix. At denoise 1.0 every frame is generated from fresh noise with
+# the line art as a hint only, so each frame is independently re-imagined -- Graham:
+# "if I asked you to draw a square moving across the screen, you'd give me a square,
+# a circle, a triangle, a rhombus." ControlNet conditions space, it does NOT promise
+# temporal identity.
+#
+# Starting from the DRAWING and only lightly repainting it inverts that: the input
+# sequence is already perfectly consistent, so at low denoise the output inherits
+# that consistency. Low enough to keep the instrument; high enough to add art.
+DENOISE = 0.42
+STEPS = 20
+CFG = 6.5
 
 PROMPT = ("a 1930s rubber hose cartoon girl riding a bicycle down a country road, "
           "black and white vintage cartoon, thick ink outlines, pie-cut eyes, white "
@@ -57,8 +66,8 @@ def paint_frame(png, seed, dest):
             "positive": ["6", 0], "negative": ["7", 0], "control_net": ["11", 0],
             "image": ["10", 0], "strength": CN_STRENGTH,
             "start_percent": 0.0, "end_percent": 1.0}},
-        "5":  {"class_type": "EmptyLatentImage", "inputs": {
-            "width": ff_puppet.W, "height": ff_puppet.H, "batch_size": 1}},
+        # img2img: the latent IS the drawn frame, not empty noise.
+        "5":  {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["4", 2]}},
         "3":  {"class_type": "KSampler", "inputs": {
             # One fixed seed across the whole film: the line art already guarantees
             # temporal consistency, so re-rolling noise per frame would only add
