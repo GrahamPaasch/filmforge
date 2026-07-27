@@ -186,6 +186,38 @@ before the next render:
 The second is the more radical departure from "generate everything with a diffusion model" — and
 on current evidence it is the one most likely to actually produce something watchable.
 
+## RESULT: the approach that worked (2026-07-26)
+
+Four attempts at motion in one evening. Only the last one passed.
+
+| # | Approach | Outcome |
+|---|---|---|
+| 1 | Wan 2.2 5B, frame-chained, 640x480 @12fps | Rejected. Distorted further with every clip until "the violin stopped looking like a violin and the skeleton stopped looking like a skeleton." |
+| 2 | Same, native 1280x704 @24fps, repaired handoffs | Rejected. "A hybrid of realistic and cartoon... like a literal horror show." Wan is trained on real video and drags any style back toward photorealism. |
+| 3 | AnimateDiff over ToonYou (cartoon-native base) | Genuinely a cartoon at last — but "very disjointed... melting in and out of itself." AnimateDiff stitches 16-frame windows; the seams are the melting. |
+| 4 | **Code-rigged puppet + ControlNet paint** | **Accepted.** "That's actually kind of good, honestly." |
+
+**The winning architecture: the rig owns motion, the model owns art.**
+
+`ff_puppet.py` draws the character as geometry — circles, quadratic-bezier "hoses", a
+crank-driven leg cycle. Every frame is a pure function of time, so the character *cannot* morph:
+it is the same shapes, moved. Pedal cadence is one revolution per beat, which makes the
+Mickey-Mousing a mathematical fact rather than an edit.
+
+`ff_puppet_render.py` then feeds each drawn frame to ToonYou through **ControlNet lineart** at
+strength 0.95 with one fixed seed. The model cannot invent geometry — it can only render the pose
+it is handed — so it contributes exactly what it is good at (line quality, shading, period
+texture) and nothing it is bad at (object permanence).
+
+Costs, measured: drawing 120 frames takes **1.5 seconds**; painting them takes **~6 s/frame**, so
+a 10-second short is about 12 minutes end to end — comfortably inside the one-hour budget, and the
+drawn pass alone is instant enough to iterate motion in real time before spending any GPU at all.
+
+**Consequence for the spec:** generative video models are demoted to a research track. The default
+pipeline is now puppet-plus-ControlNet. New motion is authored as code (a walk cycle, a dance, a
+chase) and is reusable forever — which is exactly how the 1930s studios worked, with a library of
+cycles.
+
 ## Out of scope
 
 - Photoreal anything.
