@@ -151,6 +151,41 @@ it in the keepers file. No UI to build; it matches how he actually works.
   `voice-ui/start.sh` kills a ComfyUI it launched, and POSTs `/free` to one it didn't. Avoid
   voice-ui teardowns mid-render.
 
+## Model selection must match the medium
+
+Added 2026-07-26 after the Betty test, which Graham described as "a hybrid of realistic and
+cartoon... characters melting in weird ways... like a literal horror show." His note: *"if we're
+generating a cartoon, we need a model trained on and generating cartoons. I kind of thought that
+goes without saying, but apparently it doesn't."* It should have been written down. It is now:
+
+**Rule: before any render, state which model produces each artifact and what it was trained on.
+If the training distribution doesn't match the target medium, the render will not work and must
+not be started.**
+
+What went wrong specifically, at two layers:
+
+1. **The still.** `DreamShaperXL_Turbo` is a general-purpose photoreal-leaning SDXL checkpoint. It
+   was chosen for *speed*, and it produced a half-realistic figure rather than a 1930s cel.
+2. **The motion — and this is the harder one.** Wan 2.2 TI2V-5B is trained on *real video*. Given
+   a stylised input it pulls the picture back toward photorealism frame by frame, which is exactly
+   the melting Graham saw. No choice of still model fixes this, because the video model is the one
+   destroying the style.
+
+**Therefore the video stage itself is now in question.** Two candidate directions, to be decided
+before the next render:
+
+- **A cartoon-native generative path** — animate inside an image model that *is* the cartoon
+  (e.g. AnimateDiff over a cartoon-trained SDXL checkpoint), so the style lives in the base model
+  rather than being fought for downstream.
+- **A rigged vector puppet driven by code** — rubber-hose characters are simple shapes with
+  squash-and-stretch. Keyframing a puppet programmatically gives perfect style fidelity, exact
+  frame-accurate sync to the bar grid, zero melting, zero drift, and renders in seconds instead of
+  half an hour. It is also the option that plays to what we are strongest at: deterministic code
+  and hand-written music.
+
+The second is the more radical departure from "generate everything with a diffusion model" — and
+on current evidence it is the one most likely to actually produce something watchable.
+
 ## Out of scope
 
 - Photoreal anything.
