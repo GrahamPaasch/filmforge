@@ -23,22 +23,34 @@ import ff_pastoral as P          # reuse the ComfyUI plumbing that already works
 import ff_farm                   # push the CPU stages onto the helper boxes
 
 # --- format -----------------------------------------------------------------
-W, H = 640, 480           # 4:3, both divisible by 16 for the VAE
-FPS = 12                  # animate on twos
+# Wan 2.2 5B is trained at 1280x704. The first toon run generated at 640x480 and
+# the animation fell apart -- off-native resolution degrades this model badly, so
+# quality wins over the period 4:3 frame until the motion is right.
+W, H = 1280, 704
+# Generate at the rate the model was trained on. "On twos" is then achieved in the
+# GRADE by holding each frame for two (fps=12,fps=24), NOT by playing 24fps frames
+# back at 12 -- that just ran the first film in half speed and looked broken.
+FPS = 24
 CHAR_CKPT = "DreamShaperXL_Turbo_v2_1.safetensors"   # fast + stylised; good for candidates
 
 # --- musical grid -----------------------------------------------------------
 # The whole point of bar-aligned editing: pick numbers where bars land on frames.
-BPM = 120                 # 4/4 at 120 => one bar = 2.0 s = 24 frames at 12 fps
+# 96 bpm, 4/4 => one bar = 2.5 s = 60 frames at 24 fps, so a 120-frame clip is
+# exactly two bars. Classic rag tempo, and it makes the grid land on whole frames.
+BPM = 96
 BEATS_PER_BAR = 4
 FRAMES_PER_BAR = int(round(FPS * BEATS_PER_BAR * 60 / BPM))   # 24
-CLIP_BARS = 5                                                 # 5 bars = 120 frames
+CLIP_BARS = 2                                                 # 2 bars = 120 frames
 CLIP_FRAMES = CLIP_BARS * FRAMES_PER_BAR                      # 120
 GEN_FRAMES = CLIP_FRAMES + 1   # generate one extra; the seam frame gets dropped
 
 WAN_STEPS = 20
 WAN_CFG = 5.0
 WAN_SHIFT = 8.0
+# How hard to repair each handoff frame. Low = continuity preserved, high = the
+# chain starts to read as a series of cuts. 0.30 repairs shape drift without
+# visibly changing the picture.
+HANDOFF_DENOISE = 0.30
 
 # --- style ------------------------------------------------------------------
 TOON_STYLE = (
@@ -161,8 +173,11 @@ def gen_chain_clip(start_png, motion_prompt, seed, mp4_dest, lastframe_dest):
         "11": {"class_type": "CreateVideo", "inputs": {"images": ["10", 0], "fps": float(FPS)}},
         "12": {"class_type": "SaveVideo", "inputs": {
             "video": ["11", 0], "filename_prefix": f"fftoonclip_{seed}", "format": "mp4", "codec": "h264"}},
+        # NOT the very last frame: the tail of a Wan generation is where quality is
+        # worst, and whatever we hand off gets inherited by every clip after it.
+        # Two frames back at 24fps is 1/12 s of continuity we will never see.
         "13": {"class_type": "ImageFromBatch", "inputs": {
-            "image": ["10", 0], "batch_index": GEN_FRAMES - 1, "length": 1}},
+            "image": ["10", 0], "batch_index": GEN_FRAMES - 3, "length": 1}},
         "14": {"class_type": "SaveImage", "inputs": {"filename_prefix": f"fftoonlast_{seed}", "images": ["13", 0]}},
     }
     outs = P.run_workflow(wf, timeout_s=5400)
@@ -181,6 +196,44 @@ def gen_chain_clip(start_png, motion_prompt, seed, mp4_dest, lastframe_dest):
     return mp4_dest, lastframe_dest
 
 
+def clean_handoff(png, prompt, seed, dest):
+    """Snap a chain frame back toward the intended character before the next clip
+    inherits it.
+
+    This is the fix for the failure Graham described on the first skeleton film:
+    "it just kept getting distorted and distorted as time went on, until the violin
+    stopped looking like a violin and the skeleton stopped looking like a skeleton."
+    Naive frame-chaining compounds every error — clip N+1 faithfully continues clip
+    N's mistakes and adds its own. A low-denoise img2img pass on the handoff frame
+    re-imposes the design without breaking continuity: enough to repair shapes, not
+    enough to change the picture.
+    """
+    handle = P.upload_image(png)
+    wf = {
+        "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": CHAR_CKPT}},
+        "10": {"class_type": "LoadImage", "inputs": {"image": handle}},
+        "11": {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["4", 2]}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["4", 1]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": TOON_NEG, "clip": ["4", 1]}},
+        "3": {"class_type": "KSampler", "inputs": {
+            # Low denoise on purpose: repair, don't reinvent. Too high and the next
+            # clip starts from a different picture, which is a cut, not a chain.
+            "seed": seed, "steps": 8, "cfg": 2.0, "sampler_name": "dpmpp_sde",
+            "scheduler": "karras", "denoise": HANDOFF_DENOISE,
+            "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0],
+            "latent_image": ["11", 0]}},
+        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+        "9": {"class_type": "SaveImage", "inputs": {
+            "filename_prefix": f"fftoonfix_{seed}", "images": ["8", 0]}},
+    }
+    outs = P.run_workflow(wf, timeout_s=600)
+    refs = (outs.get("9") or {}).get("images") or []
+    if not refs:
+        return png          # repair is best-effort; never break a run over it
+    P._fetch(refs[0], dest)
+    return grayscale(dest, dest)
+
+
 def render_chain(beats, character_png, outdir, seed):
     """Walk the beat list as ONE continuous chain. `beats` is a list of motion
     prompts, one per clip; each clip is CLIP_BARS bars long by construction."""
@@ -193,7 +246,10 @@ def render_chain(beats, character_png, outdir, seed):
         gen_chain_clip(start, motion + TOON_STYLE, seed * 1000 + i, mp4, last)
         print(f"clip {i:03d}/{len(beats)}", flush=True)
         parts.append(mp4)
-        start = last            # <- the chain. Never a fresh keyframe.
+        # Repair the handoff before the next clip inherits it, or errors compound
+        # all the way down the chain.
+        fixed = f"{outdir}/clips/clip{i:03d}_fixed.png"
+        start = clean_handoff(last, motion + TOON_STYLE, seed * 1000 + i, fixed)
     return parts
 
 
@@ -223,7 +279,11 @@ def assemble(parts, dest):
 def period_look(src, dest):
     """Black and white, contrast, grain and a gentle vignette — the aged-stock look.
     Applied once at the end so it is consistent across the whole film."""
-    vf = ("format=gray,eq=contrast=1.15:brightness=0.01:gamma=0.98,"
+    # fps=12,fps=24 is the "on twos" step: keep every other frame and hold it, so
+    # there are 12 unique images a second played at 24 -- period-correct, and the
+    # motion still runs at real speed.
+    vf = ("fps=12,fps=24,"
+          "format=gray,eq=contrast=1.15:brightness=0.01:gamma=0.98,"
           "noise=alls=9:allf=t+u,"          # per-frame grain, the way film moves
           "vignette=PI/5")
     return ff_farm.ffmpeg_job([src], ["-vf", vf, "-c:v", "libx264", "-preset", "medium",
@@ -258,11 +318,12 @@ def film_seconds(n_clips):
 # One scene anchor, repeated in every prompt. The spec's rule: don't swap the
 # subject mid-chain or the picture morphs. Only the ACTION changes, and only a
 # little, so each clip continues the last instead of re-imagining it.
-SCENE = ("a dancing cartoon skeleton playing a fiddle in a moonlit graveyard, "
-         "same skeleton, same graveyard, continuous shot")
+SCENE = ("a 1930s cartoon dancing girl with a big round head, huge eyes and a short "
+         "black dress singing on a small stage, Betty Boop style, same girl, same "
+         "stage, continuous shot")
 
 # Twelve clips x 5 bars = 60 bars = 120 s. The three-beat arc from spec 02.
-BEATS = [
+BEATS_SKELETON_V1 = [
     # I. it starts playing
     "the skeleton lifts the fiddle and begins to play, bow sawing steadily",
     "the skeleton sways side to side as it plays, ribs bouncing with the beat",
@@ -278,6 +339,17 @@ BEATS = [
     "the skeleton bows faster and faster, the crowd whirling out of control",
     "bones scatter and tumble apart mid-dance, the fiddle flying loose",
     "everything drops to the ground at once and lies still, moonlight over the bones",
+]
+
+# The Betty Boop test: short on purpose. Six clips at native resolution answers
+# "is the animation any good now" in half an hour instead of two.
+BEATS = [
+    "the girl sways her hips side to side and begins to sing, arms swinging",
+    "she spins once on the spot, skirt flaring out, then keeps dancing",
+    "she kicks one leg high, then the other, bouncing in time",
+    "she leans toward the front and shimmies her shoulders",
+    "she twirls with both arms up over her head",
+    "she finishes with a big bow and holds it, still",
 ]
 
 
@@ -311,7 +383,7 @@ def make_toon(seed=1, character_png=None, n_clips=None, want_music=True):
     # 3. assemble, grade, pillarbox, mux
     cut = assemble(parts, f"{d}/cut.mp4")
     look = period_look(cut, f"{d}/look.mp4")
-    wide = pillarbox(look, f"{d}/wide.mp4")
+    wide = look          # generating 16:9 natively now; nothing to pillarbox
     out = f"{ROOT}/films/toon-skeleton-{seed}.mp4"
     if music_wav:
         mux(wide, music_wav, out)

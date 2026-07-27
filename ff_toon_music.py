@@ -12,7 +12,7 @@ about intent.
 import os, random, mido
 
 TPB = 480
-BPM = 120
+BPM = 96          # matches ff_toon: one bar = 2.5s = 60 frames at 24fps
 BEATS_PER_BAR = 4
 BAR_SECONDS = BEATS_PER_BAR * 60 / BPM      # 2.0 s
 
