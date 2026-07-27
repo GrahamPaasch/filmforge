@@ -137,47 +137,88 @@ def limb(d, a, b, c, w):
         d.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=INK)
 
 
-def draw(rig, v, b, arms, sway):
+def draw(rig, v, b, arms, sway, t=0.0, pulse=0.0):
+    """Now that the mechanism is proven, put a real drawing on it.
+
+    Everything here is staging: forms held apart so they read in silhouette, the
+    instrument clear of the face, limbs thick enough to be rubber hose rather than
+    sticks, and the stage giving the figure somewhere to stand."""
     img = Image.new("L", (W, H), PAPER)
     d = ImageDraw.Draw(img)
 
-    # far arm behind the body, near arm in front: a stable draw order
-    limb(d, *arms["l"], 20)
+    # --- stage ----------------------------------------------------------------
+    floor = H * 0.90
+    for k in range(16):
+        x = k * (W / 15.0)
+        d.line([(x, -10), (x + 14 * math.sin(t * 0.3 + k * 0.5), floor - 70)],
+               fill=INK, width=2)
+    for k in range(5):
+        x0 = k * (W / 4.2) - 40
+        d.arc([x0, -120, x0 + 270, 80], start=20, end=160, fill=INK, width=6)
+    d.line([(0, floor), (W, floor)], fill=INK, width=7)
+    for k in range(9):
+        x = 44 + k * (W - 88) / 8
+        r = 10 + 5 * pulse
+        d.ellipse([x - r, floor + 14 - r, x + r, floor + 14 + r], outline=INK, width=4)
 
-    # torso and head
-    hip = (v["chest"][0], v["chest"][1] + 108)
-    d.line([hip, (v["chest"][0], v["chest"][1] - 62)], fill=INK, width=54)
-    for sx in (-1, 1):
-        d.line([hip, (hip[0] + sx * 26, H * 0.94)], fill=INK, width=20)
-    head = (v["chin"][0] + 4, v["chin"][1] - 30)
-    d.ellipse([head[0] - rig.head_r, head[1] - rig.head_r,
-               head[0] + rig.head_r, head[1] + rig.head_r],
-              fill=PAPER, outline=INK, width=7)
-
-    # the violin: solid body, neck, scroll -- an unmistakable silhouette
     ux, uy = v["axis"]
     nx, ny = v["normal"]
 
     def on(dist, off=0.0):
         return (v["tail"][0] + ux * dist + nx * off, v["tail"][1] + uy * dist + ny * off)
 
+    # --- far arm, behind everything ------------------------------------------
+    limb(d, *arms["l"], 22)
+    p = arms["l"][2]
+    d.ellipse([p[0] - 14, p[1] - 14, p[0] + 14, p[1] + 14], fill=PAPER, outline=INK, width=5)
+
+    # --- body: skirt and legs, separated so they read ------------------------
+    hip = (v["chest"][0], v["chest"][1] + 96)
+    for sx, spread in ((-1, 26), (1, 30)):
+        knee = (hip[0] + sx * spread, hip[1] + 96)
+        foot = (hip[0] + sx * (spread + 10), floor - 6)
+        limb(d, hip, knee, foot, 17)
+        d.ellipse([foot[0] - 20, foot[1] - 9, foot[0] + 16, foot[1] + 9], fill=INK)
+    d.polygon([(v["chest"][0] - 34, v["chest"][1] + 6),
+               (v["chest"][0] + 34, v["chest"][1] + 6),
+               (hip[0] + 58, hip[1] + 26), (hip[0] - 58, hip[1] + 26)], fill=INK)
+    d.line([hip, (v["chest"][0], v["chest"][1] - 58)], fill=INK, width=46)
+
+    # --- the violin ----------------------------------------------------------
     body = [on(0, 0), on(12, 30), on(30, 36), on(46, 17), on(58, 15), on(72, 30),
             on(90, 34), on(104, 15), on(112, 4)]
     body += [on(112, -4), on(104, -15), on(90, -34), on(72, -30), on(58, -15),
              on(46, -17), on(30, -36), on(12, -30)]
     d.polygon(body, fill=INK)
-    d.line([on(110, 0), on(206, 0)], fill=INK, width=16)
+    d.line([on(110, 0), on(206, 0)], fill=INK, width=15)
     d.ellipse([v["scroll"][0] - 15, v["scroll"][1] - 15,
                v["scroll"][0] + 15, v["scroll"][1] + 15], fill=INK)
-    for off in (-16, 16):
+    for off in (-15, 15):
         d.line([on(44, off), on(64, off)], fill=PAPER, width=5)
 
-    # the bow, then the near arm on top of it
+    # --- head, held clear of the instrument ----------------------------------
+    head = (v["chin"][0] + 30, v["chin"][1] - 54)
+    d.ellipse([head[0] - rig.head_r, head[1] - rig.head_r,
+               head[0] + rig.head_r, head[1] + rig.head_r],
+              fill=PAPER, outline=INK, width=7)
+    for dx, dy, r in ((-36, -22, 17), (-8, -40, 19), (26, -28, 16), (40, -2, 13)):
+        d.ellipse([head[0] + dx - r, head[1] + dy - r, head[0] + dx + r, head[1] + dy + r],
+                  fill=INK)
+    for sx in (-1, 1):
+        eye = (head[0] + sx * 15 - 4, head[1] - 6)
+        d.ellipse([eye[0] - 11, eye[1] - 11, eye[0] + 11, eye[1] + 11],
+                  fill=PAPER, outline=INK, width=3)
+        d.ellipse([eye[0] - 5, eye[1] + 1, eye[0] + 5, eye[1] + 11], fill=INK)
+    d.arc([head[0] - 12, head[1] + 12, head[0] + 16, head[1] + 30], start=0, end=180,
+          fill=INK, width=4)
+
+    # --- bow, then the near arm over it --------------------------------------
     d.line([b["grip"], b["tip"]], fill=INK, width=7)
-    limb(d, *arms["r"], 22)
-    for p in (arms["r"][2], arms["l"][2]):
-        d.ellipse([p[0] - 13, p[1] - 13, p[0] + 13, p[1] + 13],
-                  fill=PAPER, outline=INK, width=5)
+    d.line([(b["grip"][0] + ux * 5, b["grip"][1] + uy * 5),
+            (b["tip"][0] + ux * 5, b["tip"][1] + uy * 5)], fill=INK, width=2)
+    limb(d, *arms["r"], 24)
+    p = arms["r"][2]
+    d.ellipse([p[0] - 15, p[1] - 15, p[0] + 15, p[1] + 15], fill=PAPER, outline=INK, width=5)
     return img
 
 
@@ -241,7 +282,9 @@ def render(seconds=20, seed=23, workdir="/home/gpaasch/filmforge/runs/meshrig"):
                        "fingerboard": a["fingerboard"], "l_hand": a["l"][2],
                        "clamped": a["clamped"],
                        "branch": (a["r"][1][0] > a["r"][0][0])})
-        draw(rig, v, b, a, sway).save(f"{workdir}/frames/f{n:04d}.png")
+        last = max([ts for (ts, _p, _v) in notes if ts <= t], default=-9)
+        pulse = max(0.0, 1.0 - (t - last) / 0.18)
+        draw(rig, v, b, a, sway, t, pulse).save(f"{workdir}/frames/f{n:04d}.png")
         prog.step()
 
     rep = check(states)
