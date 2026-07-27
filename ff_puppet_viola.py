@@ -113,7 +113,43 @@ def draw_notes_floating(d, t, notes):
               start=200, end=340, fill=INK, width=3)
 
 
-def draw_violist(d, t, pos, attack, sway):
+def _draw_bow_only(d, on_axis, nx, ny, ux, uy, pos, shoulder):
+    """The bow alone, in rig space -- the only part that must move rigidly."""
+    bow_at = on_axis(30 + 74 * pos, 0)
+    bpx, bpy = nx * 96, ny * 96
+    frog = (bow_at[0] - bpx * 0.35 + ux * 6, bow_at[1] - bpy * 0.35 + uy * 6)
+    tip = (bow_at[0] + bpx * 0.65, bow_at[1] + bpy * 0.65)
+    d.line([frog, tip], fill=INK, width=6)
+    d.line([(frog[0] + ux * 4, frog[1] + uy * 4),
+            (tip[0] + ux * 4, tip[1] + uy * 4)], fill=INK, width=2)
+
+
+def _draw_body_extras(d, shoulder, head_c, attack):
+    """Head and left arm, drawn when the body plate is rendered on its own."""
+    circle(d, head_c, 36, fill=PAPER, outline=INK, width=6)
+    for sx in (-1, 1):
+        eye = (head_c[0] + sx * 12 - 6, head_c[1] - 6)
+        circle(d, eye, 10, fill=PAPER, outline=INK, width=3)
+        circle(d, (eye[0] - 2, eye[1] + 2 + 2 * attack), 5, fill=INK, outline=INK, width=1)
+    d.arc([head_c[0] - 20, head_c[1] + 6, head_c[0] + 6, head_c[1] + 24],
+          start=0, end=180, fill=INK, width=4)
+    for dx, dy, r in ((-30, -20, 13), (-6, -34, 15), (22, -22, 12)):
+        circle(d, (head_c[0] + dx, head_c[1] + dy), r, fill=INK, outline=INK, width=1)
+
+
+def bow_axis(sway=0.0):
+    """Expose the bow's travel direction so the propagation rig can move the painted
+    bow along exactly the line the drawing used."""
+    hip = (W * 0.46, H * 0.64 + 2 * sway)
+    shoulder = (hip[0] - 2, hip[1] - 86 + sway)
+    tail = (shoulder[0] - 54, shoulder[1] + 6)
+    scroll_end = (shoulder[0] - 196, shoulder[1] - 34)
+    ux, uy = scroll_end[0] - tail[0], scroll_end[1] - tail[1]
+    L = math.hypot(ux, uy)
+    return ux / L, uy / L
+
+
+def draw_violist(d, t, pos, attack, sway, only=None):
     """The player, staged for silhouette.
 
     The first version failed because everything overlapped: the instrument sat on
@@ -151,34 +187,41 @@ def draw_violist(d, t, pos, attack, sway):
     def on_axis(dist, off=0.0):
         return (tail[0] + ux * dist + nx * off, tail[1] + uy * dist + ny * off)
 
-    # body outline: lower bout, waist, upper bout -- drawn as a closed polygon so
-    # the shape survives being shrunk
+    # The instrument as a SOLID BLACK silhouette. The previous version was an open
+    # outline with f-holes and four strings inside it, and the painter read that as
+    # a spoked disc and drew a little machine. An unmistakable filled violin
+    # silhouette gives it nothing to reinterpret -- shape first, detail never.
     outline = []
-    for dist, off in ((2, 0), (10, 30), (26, 34), (40, 16), (48, 14), (58, 26),
-                      (72, 30), (84, 12), (88, 0)):
+    for dist, off in ((0, 0), (8, 26), (22, 32), (34, 15), (44, 13), (56, 27),
+                      (70, 30), (82, 14), (88, 4)):
         outline.append(on_axis(dist, off))
-    for dist, off in ((88, 0), (84, -12), (72, -30), (58, -26), (48, -14),
-                      (40, -16), (26, -34), (10, -30), (2, 0)):
+    for dist, off in ((88, -4), (82, -14), (70, -30), (56, -27), (44, -13),
+                      (34, -15), (22, -32), (8, -26)):
         outline.append(on_axis(dist, off))
-    d.polygon(outline, fill=PAPER, outline=INK)
-    d.line(outline + [outline[0]], fill=INK, width=5, joint="curve")
+    d.polygon(outline, fill=INK)
 
-    # f-holes, bridge, tailpiece -- the details that say "string instrument"
-    for off in (-16, 16):
-        d.arc([on_axis(38, off)[0] - 7, on_axis(38, off)[1] - 12,
-               on_axis(38, off)[0] + 7, on_axis(38, off)[1] + 12],
-              start=0, end=360, fill=INK, width=4)
-    d.line([on_axis(30, -22), on_axis(30, 22)], fill=INK, width=5)     # bridge
-    d.polygon([on_axis(6, -9), on_axis(6, 9), on_axis(22, 6), on_axis(22, -6)], fill=INK)
+    # neck and fingerboard: one solid tapering bar, then the scroll curl
+    d.line([on_axis(84, 0), on_axis(176, 0)], fill=INK, width=15)
+    circle(d, on_axis(186, 4), 13, fill=INK, outline=INK, width=1)
+    circle(d, on_axis(186, 4), 5, fill=PAPER, outline=PAPER, width=1)
 
-    # neck + fingerboard + scroll
-    d.line([on_axis(86, 0), scroll_end], fill=INK, width=13)
-    circle(d, scroll_end, 12, fill=PAPER, outline=INK, width=5)
-    # four strings, running the length -- thin, but they read as texture not shape
-    for off in (-6, -2, 2, 6):
-        d.line([on_axis(26, off), on_axis(168, off)], fill=INK, width=2)
+    # TWO f-holes as thin white slits cut INTO the black body -- negative space is
+    # what says "violin"; black marks on white said "wheel".
+    for off in (-15, 15):
+        a0 = on_axis(34, off)
+        a1 = on_axis(52, off)
+        d.line([a0, a1], fill=PAPER, width=4)
 
     # --- the bow: crosses the STRINGS at a right angle, never the face ---
+    # `only` lets the propagation pipeline render each rigid part in isolation, so
+    # the painted keyframe can be cut into parts by the rig's own masks rather than
+    # by a guessed bounding box (which sliced her head in half last time).
+    if only == "body":
+        _draw_body_extras(d, shoulder, head_c, attack)
+        return
+    if only == "bow":
+        _draw_bow_only(d, on_axis, nx, ny, ux, uy, pos, shoulder)
+        return
     bow_at = on_axis(30 + 74 * pos, 0)
     bpx, bpy = nx * 96, ny * 96
     frog = (bow_at[0] - bpx * 0.35 + ux * 6, bow_at[1] - bpy * 0.35 + uy * 6)
@@ -212,7 +255,7 @@ def draw_violist(d, t, pos, attack, sway):
         circle(d, (head_c[0] + dx, head_c[1] + dy), r, fill=INK, outline=INK, width=1)
 
 
-def frame(n, notes, background=True):
+def frame(n, notes, background=True, only=None):
     t = n / FPS
     pos, pitch, attack = bow_state(t, notes)
     flash = max(0.0, 1.0 - attack)
@@ -222,7 +265,7 @@ def frame(n, notes, background=True):
     # would trip every border and fragmentation check and hide the real problem.
     if background:
         draw_stage(d, t, flash)
-    draw_violist(d, t, pos, flash, 3 * math.sin(t * 2.1))
+    draw_violist(d, t, pos, flash, 3 * math.sin(t * 2.1), only=only)
     if background:
         draw_notes_floating(d, t, notes)
     return img
