@@ -56,6 +56,20 @@ generative path and the one to try first if we stay with diffusion.
 Needs: ComfyUI-AnimateDiff-Evolved custom node (not currently installed — `custom_nodes/` is
 empty) plus a motion module.
 
+### 2b. ToonCrafter — the one model actually trained on cartoons
+`Doubiiu/ToonCrafter` on Hugging Face (SIGGRAPH Asia 2024), with community ComfyUI nodes
+(ComfyUI-ToonCrafter / ComfyUI-DynamiCrafterWrapper) and an fp16 build. ~12 GB VRAM, 16 frames at
+512x320 per pass.
+
+It does **generative cartoon interpolation**: give it two cartoon drawings and it in-betweens
+them. That is not a workaround, it is exactly the 1930s process — key drawings first, then inbetweens
+— and it is the only option here whose training distribution *is* the medium.
+
+Caveats, honestly: 512x320 and 16 frames per pass is small, so a two-minute film needs many passes
+and an upscale, and interpolation means we must author the keyframes (in a cartoon SDXL checkpoint
+we already have). That authoring requirement is shared with option 1, which is a hint about where
+this is really heading.
+
 ### 3. LTX-Video (LTX-2.x)
 Fast, ComfyUI-native, runs comfortably in 24 GB, and notable for single-pass audio+video. Still a
 *realistic* video model, so it likely inherits the same style-collapse problem as Wan. Worth
