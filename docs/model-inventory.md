@@ -13,8 +13,26 @@ Hardware: one RTX 3090, 24 GB VRAM, 265 GB free on the ComfyUI disk (2026-07-26)
 |---|---|---|---|---|
 | Wan 2.2 TI2V-5B | 9.4 GB | **real video** | photoreal motion, image-to-video | **Wrong tool for cartoons.** It drags stylised input back toward photorealism frame by frame — the "melting" and the realistic/cartoon hybrid Graham rejected on 2026-07-26. |
 
-That is the entire local video inventory. One model, and it is the one that does not suit the
-medium we chose. This is the gap.
+**Installed 2026-07-26 to close that gap** — a toolkit, not one hammer, because a single film may
+need different models for different jobs (characters vs. backgrounds vs. motion):
+
+| Model | Size | Trained on | Use it for |
+|---|---|---|---|
+| **ToonCrafter** (`tooncrafter_512_interp-pruned-fp16`) | 3.2 GB | **cartoons** | generative inbetweening between two cartoon key drawings — 512x320, 16 frames/pass |
+| ToonCrafter sketch encoder | 0.7 GB | cartoons/line art | guiding interpolation with sketch input |
+| **AnimateDiff SDXL** (`mm_sdxl_v10_beta`) | 0.95 GB | motion only | animating *inside* an SDXL checkpoint's own style |
+| **AnimateDiff SD1.5 v3** (`v3_sd15_mm`) | 1.7 GB | motion only | the mature ecosystem: motion LoRAs, camera control |
+| **ToonYou beta6** (SD1.5) | 2.3 GB | **cartoon/toon** | the SD1.5 base to pair with AnimateDiff v3 |
+| **LTX-Video 2B v0.9.5** | 6.3 GB | real video | fast realistic motion; speed benchmarks |
+| **Real-ESRGAN x4** | 0.07 GB | upscaling | mandatory — ToonCrafter outputs 512x320 |
+
+ComfyUI custom nodes installed and verified loading: `ComfyUI-DynamiCrafterWrapper`
+(ToonCrafterInterpolation, ToonCrafterDecode, DynamiCrafterI2V, DynamiCrafterBatchInterpolation),
+`ComfyUI-AnimateDiff-Evolved`, `ComfyUI-VideoHelperSuite`. LTX nodes ship natively.
+
+**Pick per artifact, not per film.** A cartoon character dancing in a forest may want ToonYou or
+Pony for the character, RealVisXL or albedobase for the background plate, ToonCrafter for the
+character motion, and Real-ESRGAN to bring it up to delivery resolution.
 
 ### Stills (SDXL checkpoints)
 
