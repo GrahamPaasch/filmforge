@@ -353,7 +353,7 @@ BEATS = [
 ]
 
 
-def make_toon(seed=1, character_png=None, n_clips=None, want_music=True):
+def make_toon(seed=1, character_png=None, n_clips=None, want_music=True, label=None):
     """The whole short. Music first, then one continuous chain cut to its bars."""
     import ff_toon_music
 
@@ -384,7 +384,13 @@ def make_toon(seed=1, character_png=None, n_clips=None, want_music=True):
     cut = assemble(parts, f"{d}/cut.mp4")
     look = period_look(cut, f"{d}/look.mp4")
     wide = look          # generating 16:9 natively now; nothing to pillarbox
-    out = f"{ROOT}/films/toon-skeleton-{seed}.mp4"
+    # Name the film after the character it actually stars in. The first Betty test
+    # shipped as "toon-skeleton-7.mp4", which is a small lie that costs real
+    # confusion when you have a folder of candidates.
+    if label is None:
+        base = os.path.basename(character_png)
+        label = base.replace("char-", "").rsplit("-", 1)[0] if base.startswith("char-") else "toon"
+    out = f"{ROOT}/films/toon-{label}-{seed}.mp4"
     if music_wav:
         mux(wide, music_wav, out)
     else:
