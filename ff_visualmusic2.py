@@ -68,13 +68,19 @@ def render(seconds=60, seed=17, workdir="/home/gpaasch/filmforge/runs/vm2"):
     for (ts, p, v) in notes:
         by_beat.setdefault(int(ts / beat + 1e-6), []).append((ts, p, v))
 
+    # At 12 fps the frame that carries a change lands on average half a frame AFTER
+    # the beat -- up to 83 ms late, which Graham could see ("a little bit behind the
+    # music"). Perception is also asymmetric: sound arriving before its picture reads
+    # as wrong far sooner than the reverse. So fire the picture slightly early.
+    LEAD = 0.5 / FPS + 0.02          # half a frame, plus a small perceptual margin
+
     total = int(seconds * FPS)
     ff_progress.install_page()
     prog = ff_progress.Progress(f"vm2-{seed}", total, "stepping the beat")
 
     for n in range(total):
         t = n / FPS
-        idx = int(t / beat + 1e-9)
+        idx = int((t + LEAD) / beat + 1e-9)
         st = beat_state(idx, by_beat)
         downbeat = (idx % beats_per_bar == 0)
         bar_no = idx // beats_per_bar
